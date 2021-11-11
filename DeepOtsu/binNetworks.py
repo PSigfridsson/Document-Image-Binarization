@@ -10,29 +10,29 @@ import tensorflow as tf
 import binLayers as layers
 
 def leaky_relu(x):
-    return tf.maximum(x,0.25*x)
-    
+	return tf.maximum(x,0.25*x)
+	
 def buildInputDesnet(inputs,numblock):
-    netlist = []
-    net = inputs
-    for n in xrange(numblock):
-        with tf.variable_scope('block'+str(n)):
-            rnet = resUNetBlock(net)
-            net = layers.concat(net,rnet,'inc'+str(n))
-            netlist.append(rnet)
-    return netlist
+	netlist = []
+	net = inputs
+	for n in range(numblock):
+		with tf.variable_scope('block'+str(n)):
+			rnet = resUNetBlock(net)
+			net = layers.concat(net,rnet,'inc'+str(n))
+			netlist.append(rnet)
+	return netlist
 
 def buildfusionnet(inputs,numblock):
-    netlist = []
-    net = inputs
-    for n in xrange(numblock):
-        with tf.variable_scope('block'+str(n)):
-            net = resUNetBlock(net)
-            netlist.append(net)
-    
-    initw = 1./numblock
+	netlist = []
+	net = inputs
+	for n in range(numblock):
+		with tf.variable_scope('block'+str(n)):
+			net = resUNetBlock(net)
+			netlist.append(net)
+	
+	initw = 1./numblock
 
-    for n in xrange(numblock):
+	for n in range(numblock):
 		w = tf.get_variable('w'+str(n),[1],tf.float32,tf.constant_initializer(initw))
 		wnet = tf.multiply(netlist[n],w)
 		if n == 0:
@@ -40,16 +40,16 @@ def buildfusionnet(inputs,numblock):
 		else:
 			fnet = layers.concat(fnet,wnet,'o-'+str(n))
 		
-    fnet = tf.expand_dims(tf.reduce_mean(fnet,axis=3),axis=3)
-    
-    netlist.append(fnet)
-    return netlist
+	fnet = tf.expand_dims(tf.reduce_mean(fnet,axis=3),axis=3)
+	
+	netlist.append(fnet)
+	return netlist
 
 def buildfusionDesnet(inputs,numblock):
-    netlist = []
-    mid_netlist = []
-    net = inputs
-    for n in xrange(numblock):
+	netlist = []
+	mid_netlist = []
+	net = inputs
+	for n in range(numblock):
 		print('n-th:',n)
 		with tf.variable_scope('block'+str(n)):
 			rnet = resUNetBlock(net)
@@ -71,34 +71,34 @@ def buildfusionDesnet(inputs,numblock):
 				netlist.append(wnet)
 			
 			
-    '''
-    #initw = 1./numblock
-    print('number of list:',len(netlist),numblock)
-    with tf.variable_scope('fusion'):
-        for n in xrange(numblock):
+	'''
+	#initw = 1./numblock
+	print('number of list:',len(netlist),numblock)
+	with tf.variable_scope('fusion'):
+		for n in range(numblock):
 			num_channels = netlist[n].get_shape()[-1].value
 			w = tf.get_variable('w'+str(n),[num_channels],tf.float32,tf.constant_initializer(1.0/num_channels))
 			wnet = tf.multiply(netlist[n],w)
 		
 		
-    fnet = tf.expand_dims(tf.reduce_mean(fnet,axis=3),axis=3)
-    netlist.append(fnet)	
-    '''
-    
-    
-    return netlist,mid_netlist
-    
+	fnet = tf.expand_dims(tf.reduce_mean(fnet,axis=3),axis=3)
+	netlist.append(fnet)	
+	'''
+	
+	
+	return netlist,mid_netlist
+	
 def buildfusionDenselynet(inputs,numblock):
-    netlist = []
-    net = inputs
-    for n in xrange(numblock):
-        with tf.variable_scope('block'+str(n)):
-            net = denseResUnetBlock(net)
-            netlist.append(net)
-    
-    initw = 1./numblock
+	netlist = []
+	net = inputs
+	for n in range(numblock):
+		with tf.variable_scope('block'+str(n)):
+			net = denseResUnetBlock(net)
+			netlist.append(net)
+	
+	initw = 1./numblock
 
-    for n in xrange(numblock):
+	for n in range(numblock):
 		w = tf.get_variable('w'+str(n),[1],tf.float32,tf.constant_initializer(initw))
 		wnet = tf.multiply(netlist[n],w)
 		if n == 0:
@@ -106,34 +106,34 @@ def buildfusionDenselynet(inputs,numblock):
 		else:
 			fnet = layers.concat(fnet,wnet,'o-'+str(n))
 	
-    fnet = tf.reduce_mean(fnet,axis=3)
-    print('finall map shape is:',fnet.get_shape().value)
-    netlist.append(fnet)	
-    return netlist
-      
+	fnet = tf.reduce_mean(fnet,axis=3)
+	print('finall map shape is:',fnet.get_shape().value)
+	netlist.append(fnet)	
+	return netlist
+	  
 def buildnet(inputs,numblock,nlayers=0):
-    netlist = []
-    net = inputs
-    for n in xrange(numblock):
-        with tf.variable_scope('block'+str(n)):
-            net = resUNetBlock(net,nlayers)
-            netlist.append(net)
-    return netlist
-        
+	netlist = []
+	net = inputs
+	for n in range(numblock):
+		with tf.variable_scope('block'+str(n)):
+			net = resUNetBlock(net,nlayers)
+			netlist.append(net)
+	return netlist
+		
 def buildDesNet(inputs,numblock):
-    netlist = []
-    net = inputs
-    for n in xrange(numblock):
-        with tf.variable_scope('block'+str(n)):
-            net = denseResUnetBlock(net)
-            netlist.append(net)
-    return netlist
+	netlist = []
+	net = inputs
+	for n in range(numblock):
+		with tf.variable_scope('block'+str(n)):
+			net = denseResUnetBlock(net)
+			netlist.append(net)
+	return netlist
 
 def buildHEDUnet(inputs,numblock):
 	netlist = []
 	side_net_list = []
 	net  = inputs
-	for n in xrange(numblock):
+	for n in range(numblock):
 		with tf.variable_scope('block'+str(n)):
 			side_outlayer,net = resHEDUNetBlock(net,nlayers=0,shortCut=True)
 			side_net_list.append(side_outlayer)
@@ -241,31 +241,31 @@ def resUNetBlock(inputs,nlayers=1):
 	num_filters_in = inputs.get_shape()[-1].value
 	
 	conv1 = layers.conv2d(inputs,[3,3],numFilter[0],'conv1',activation_fn=leaky_relu)
-	for n in xrange(nlayers):
+	for n in range(nlayers):
 		conv1 = layers.conv2d(conv1,[3,3],numFilter[0],'conv1-'+str(n),activation_fn=leaky_relu)
 		
 	pool1 = layers.max_pooling(conv1,[2,2],'pool1')
 	
 	conv2 = layers.conv2d(pool1,[3,3],numFilter[1],'conv2',activation_fn=leaky_relu)
-	for n in xrange(nlayers):
+	for n in range(nlayers):
 		conv2 = layers.conv2d(conv2,[3,3],numFilter[1],'conv2-'+str(n),activation_fn=leaky_relu)
 		
 	pool2 = layers.max_pooling(conv2,[2,2],'pool2')
 	
 	conv3 = layers.conv2d(pool2,[3,3],numFilter[2],'conv3',activation_fn=leaky_relu)
-	for n in xrange(nlayers):
+	for n in range(nlayers):
 		conv3 = layers.conv2d(conv3,[3,3],numFilter[2],'conv3-'+str(n),activation_fn=leaky_relu)
 		
 	pool3 = layers.max_pooling(conv3,[2,2],'pool3')
 	
 	conv4 = layers.conv2d(pool3,[3,3],numFilter[3],'conv4',activation_fn=leaky_relu)
-	for n in xrange(nlayers):
+	for n in range(nlayers):
 		conv4 = layers.conv2d(conv4,[3,3],numFilter[3],'conv4-'+str(n),activation_fn=leaky_relu)
 		
 	pool4 = layers.max_pooling(conv4,[2,2],'pool4')
 	
 	conv5 = layers.conv2d(pool4,[3,3],numFilter[4],'conv5',activation_fn=leaky_relu)
-	for n in xrange(nlayers):
+	for n in range(nlayers):
 		conv5 = layers.conv2d(conv5,[3,3],numFilter[4],'conv5-'+str(n),activation_fn=leaky_relu)
 		
 	pool5 = layers.max_pooling(conv5,[2,2],'pool5')
@@ -273,26 +273,26 @@ def resUNetBlock(inputs,nlayers=1):
 	up_conv6 = layers.deconv_upsample(pool5,2,'upsample6',activation_fn=leaky_relu)
 	up_conv6 = layers.concat(up_conv6,conv5,'cont6')
 	up_conv6 = layers.conv2d(up_conv6,[3,3],numFilter[3],'conv6',activation_fn=leaky_relu)
-	for n in xrange(nlayers):
+	for n in range(nlayers):
 		up_conv6 = layers.conv2d(up_conv6,[3,3],numFilter[3],'conv6-'+str(n),activation_fn=leaky_relu)
 	
 	up_conv7 = layers.deconv_upsample(up_conv6,2,'upsample7',activation_fn=leaky_relu)
 	up_conv7 = layers.concat(up_conv7,conv4,'cont7')
 	up_conv7 = layers.conv2d(up_conv7,[3,3],numFilter[2],'conv7',activation_fn=leaky_relu)
-	for n in xrange(nlayers):
+	for n in range(nlayers):
 		up_conv7 = layers.conv2d(up_conv7,[3,3],numFilter[2],'conv7-'+str(n),activation_fn=leaky_relu)	
 	
 	up_conv8 = layers.deconv_upsample(up_conv7,2,'upsample8',activation_fn=leaky_relu)
 	up_conv8 = layers.concat(up_conv8,conv3,'cont8')
 	up_conv8 = layers.conv2d(up_conv8,[3,3],numFilter[1],'conv8',activation_fn=leaky_relu)
-	for n in xrange(nlayers):
+	for n in range(nlayers):
 		up_conv8 = layers.conv2d(up_conv8,[3,3],numFilter[1],'conv8-'+str(n),activation_fn=leaky_relu)
 	
 
 	up_conv9 = layers.deconv_upsample(up_conv8,2,'upsample9',activation_fn=leaky_relu)
 	up_conv9 = layers.concat(up_conv9,conv2,'cont9')
 	up_conv9 = layers.conv2d(up_conv9,[3,3],numFilter[0],'conv9',activation_fn=leaky_relu)
-	for n in xrange(nlayers):
+	for n in range(nlayers):
 		up_conv9 = layers.conv2d(up_conv9,[3,3],numFilter[0],'conv9-'+str(n),activation_fn=leaky_relu)
 	
 	up_conv10 = layers.deconv_upsample(up_conv9,2,'upsample10',activation_fn=leaky_relu)
@@ -318,31 +318,31 @@ def resHEDUNetBlock(inputs,nlayers=1,shortCut=False):
 	num_filters_in = inputs.get_shape()[-1].value
 	
 	conv1 = layers.conv2d(inputs,[3,3],numFilter[0],'conv1',activation_fn=leaky_relu)
-	for n in xrange(nlayers):
+	for n in range(nlayers):
 		conv1 = layers.conv2d(conv1,[3,3],numFilter[0],'conv1-'+str(n),activation_fn=leaky_relu)
 		
 	pool1 = layers.max_pooling(conv1,[2,2],'pool1')
 	
 	conv2 = layers.conv2d(pool1,[3,3],numFilter[1],'conv2',activation_fn=leaky_relu)
-	for n in xrange(nlayers):
+	for n in range(nlayers):
 		conv2 = layers.conv2d(conv2,[3,3],numFilter[1],'conv2-'+str(n),activation_fn=leaky_relu)
 		
 	pool2 = layers.max_pooling(conv2,[2,2],'pool2')
 	
 	conv3 = layers.conv2d(pool2,[3,3],numFilter[2],'conv3',activation_fn=leaky_relu)
-	for n in xrange(nlayers):
+	for n in range(nlayers):
 		conv3 = layers.conv2d(conv3,[3,3],numFilter[2],'conv3-'+str(n),activation_fn=leaky_relu)
 		
 	pool3 = layers.max_pooling(conv3,[2,2],'pool3')
 	
 	conv4 = layers.conv2d(pool3,[3,3],numFilter[3],'conv4',activation_fn=leaky_relu)
-	for n in xrange(nlayers):
+	for n in range(nlayers):
 		conv4 = layers.conv2d(conv4,[3,3],numFilter[3],'conv4-'+str(n),activation_fn=leaky_relu)
 		
 	pool4 = layers.max_pooling(conv4,[2,2],'pool4')
 	
 	conv5 = layers.conv2d(pool4,[3,3],numFilter[4],'conv5',activation_fn=leaky_relu)
-	for n in xrange(nlayers):
+	for n in range(nlayers):
 		conv5 = layers.conv2d(conv5,[3,3],numFilter[4],'conv5-'+str(n),activation_fn=leaky_relu)
 		
 	pool5 = layers.max_pooling(conv5,[2,2],'pool5')
@@ -350,7 +350,7 @@ def resHEDUNetBlock(inputs,nlayers=1,shortCut=False):
 	up_conv6 = layers.deconv_upsample(pool5,2,'upsample6',activation_fn=leaky_relu)
 	up_conv6 = layers.concat(up_conv6,conv5,'cont6')
 	up_conv6 = layers.conv2d(up_conv6,[3,3],numFilter[3],'conv6',activation_fn=leaky_relu)
-	for n in xrange(nlayers):
+	for n in range(nlayers):
 		up_conv6 = layers.conv2d(up_conv6,[3,3],numFilter[3],'conv6-'+str(n),activation_fn=leaky_relu)
 	
 	if shortCut == True:
@@ -362,7 +362,7 @@ def resHEDUNetBlock(inputs,nlayers=1,shortCut=False):
 	up_conv7 = layers.deconv_upsample(up_conv6,2,'upsample7',activation_fn=leaky_relu)
 	up_conv7 = layers.concat(up_conv7,conv4,'cont7')
 	up_conv7 = layers.conv2d(up_conv7,[3,3],numFilter[2],'conv7',activation_fn=leaky_relu)
-	for n in xrange(nlayers):
+	for n in range(nlayers):
 		up_conv7 = layers.conv2d(up_conv7,[3,3],numFilter[2],'conv7-'+str(n),activation_fn=leaky_relu)
 	
 	if shortCut == True:
@@ -374,7 +374,7 @@ def resHEDUNetBlock(inputs,nlayers=1,shortCut=False):
 	up_conv8 = layers.deconv_upsample(up_conv7,2,'upsample8',activation_fn=leaky_relu)
 	up_conv8 = layers.concat(up_conv8,conv3,'cont8')
 	up_conv8 = layers.conv2d(up_conv8,[3,3],numFilter[1],'conv8',activation_fn=leaky_relu)
-	for n in xrange(nlayers):
+	for n in range(nlayers):
 		up_conv8 = layers.conv2d(up_conv8,[3,3],numFilter[1],'conv8-'+str(n),activation_fn=leaky_relu)
 	
 	if shortCut == True:
@@ -386,7 +386,7 @@ def resHEDUNetBlock(inputs,nlayers=1,shortCut=False):
 	up_conv9 = layers.deconv_upsample(up_conv8,2,'upsample9',activation_fn=leaky_relu)
 	up_conv9 = layers.concat(up_conv9,conv2,'cont9')
 	up_conv9 = layers.conv2d(up_conv9,[3,3],numFilter[0],'conv9',activation_fn=leaky_relu)
-	for n in xrange(nlayers):
+	for n in range(nlayers):
 		up_conv9 = layers.conv2d(up_conv9,[3,3],numFilter[0],'conv9-'+str(n),activation_fn=leaky_relu)
 	
 	if shortCut == True:
@@ -399,7 +399,7 @@ def resHEDUNetBlock(inputs,nlayers=1,shortCut=False):
 	up_conv10 = layers.concat(up_conv10,conv1,'cont10')
 	
 	up_conv10 = layers.conv2d(up_conv10,[3,3],num_filters_in,'conv10',activation_fn=None)
-	for n in xrange(nlayers):
+	for n in range(nlayers):
 		up_conv10 = layers.conv2d(up_conv10,[3,3],num_filters_in,'conv10'+str(n),activation_fn=None)
 		
 	#outlayer = layers.conv2d(up_conv10,[3,3],num_filters_in,'conv10',activation_fn=leaky_relu)
@@ -411,7 +411,7 @@ def resHEDUNetBlock(inputs,nlayers=1,shortCut=False):
 		nSide = len(side_outputs)
 		weights = tf.get_variable('side_weight',[nSide],tf.float32,tf.constant_initializer(1.0/nSide))
 		
-		for n in xrange(nSide):
+		for n in range(nSide):
 			if n == 0:
 				final_layer = weights[n] * side_outputs[n]
 			else:

@@ -41,13 +41,13 @@ def imshowlist(imglist):
 	plt.show()
 
 def imsave(name, arr):
-    """Save an array to an image file.
-    """
-    #im = misc.toimage(arr)
-    im = misc.toimage(arr, cmin=0, cmax=255)
-    im.save(name)
-    return
-    
+	"""Save an array to an image file.
+	"""
+	#im = misc.toimage(arr)
+	im = misc.toimage(arr, cmin=0, cmax=255)
+	im.save(name)
+	return
+	
 	
 def get_image_patch_multiscale(image,imgh,imgw,nimgh,nimgw,overlap=0.1):
 	
@@ -226,9 +226,9 @@ def main(argv=None):
 	
 	num_block = 6
 	nlayers =0
-        overlap = FLAGS.overlap
-        multiscale = FLAGS.multiscale
-        num_block = FLAGS.num_block
+	overlap = FLAGS.overlap
+	multiscale = FLAGS.multiscale
+	num_block = FLAGS.num_block
 
 	bin_pred_list = net.buildnet(image,num_block,nlayers)
 	
@@ -250,15 +250,15 @@ def main(argv=None):
 		print('*'*20)
 	
 	#image_test_dir = '/mantis/PaperWork/binary/dataset/test/'+FLAGS.dataset+'/'
-        image_test_dir = FLAGS.dataset
+	image_test_dir = FLAGS.dataset
 
 
 	imagetype = FLAGS.imgtype
 	
-        if multiscale:
-            scalelist = [0.75,1.0,1.25,1.5]
-        else:
-            scalelist = [1.0]
+	if multiscale:
+		scalelist = [0.75,1.0,1.25,1.5]
+	else:
+		scalelist = [1.0]
 	
 	for root,sub,images in os.walk(image_test_dir):
 		for img in images:
@@ -280,7 +280,7 @@ def main(argv=None):
 			res_out = np.zeros((oh,ow))
 			num_hit = np.zeros((oh,ow))
 			
-			for s in xrange(num_block):
+			for s in range(num_block):
 				
 				#if s <2:
 				#	continue
@@ -310,7 +310,7 @@ def main(argv=None):
 					
 					nstep = int( npath / batch_size ) + 1
 					
-					for ns in xrange(nstep):
+					for ns in range(nstep):
 						ps = ns * batch_size
 						pe = ps + batch_size
 						if pe >= npath:
@@ -338,7 +338,7 @@ def main(argv=None):
 							pred_bin_list = np.concatenate((pred_bin_list,pred_bin),axis=0)
 							
 					print(pred_bin_list.shape,npath,nstep,'*'*20)
-					for n in xrange(npath):
+					for n in range(npath):
 						ys = poslist[n][0]
 						xs = poslist[n][1]
 						ye = poslist[n][2]
