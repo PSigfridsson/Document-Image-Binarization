@@ -10,7 +10,7 @@ def format_gt():
     dir_path = os.getcwd()
     for file in listdir(dir_path):
         file_name, file_ending = file.split('.')
-        if file_name[-3:] == '_gt':
+        if file_name[-3:] == '_gt' and file_ending == 'png':
                 continue
 
         if file_ending in ('png', 'jpg', 'tif', 'tiff', 'bmp'):
