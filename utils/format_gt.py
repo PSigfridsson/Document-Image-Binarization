@@ -9,11 +9,13 @@ def format_gt():
     """
     dir_path = os.getcwd()
     for file in listdir(dir_path):
+        if file[-7:] == '_gt.png':
+                continue
+
         if 'png' in file or 'jpg' in file:
             old_path = os.path.join(dir_path, file)
             image = Image.open(old_path)
             formatted_name = file
-
             if file[0:3] == 'GT-':
                 formatted_name = file[3:-4] + "_gt.png"
             elif file[-7:-4] == '_GT':

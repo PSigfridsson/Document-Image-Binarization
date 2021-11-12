@@ -8,6 +8,9 @@ def format():
     """
     dir_path = os.getcwd()
     for file in listdir(dir_path):
+        if file[-4:] == '.png':
+            continue
+        
         if 'png' in file or 'jpg' in file:
             old_path = os.path.join(dir_path, file)
             image = Image.open(old_path)
