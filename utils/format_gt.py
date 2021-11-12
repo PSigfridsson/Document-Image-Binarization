@@ -10,7 +10,8 @@ def format_gt():
     dir_path = os.getcwd()
     for file in listdir(dir_path):
         if 'png' in file or 'jpg' in file:
-            image = Image.open(os.path.join(dir_path, file))
+            old_path = os.path.join(dir_path, file)
+            image = Image.open(old_path)
             formatted_name = file
 
             if file[0:3] == 'GT-':
@@ -24,6 +25,7 @@ def format_gt():
 
             new_path = os.path.join(dir_path, formatted_name)
             image.save(new_path)
+            os.remove(old_path)
 
 
 if __name__ == "__main__":
