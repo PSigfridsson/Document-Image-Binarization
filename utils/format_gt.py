@@ -9,21 +9,24 @@ def format_gt():
     """
     dir_path = os.getcwd()
     for file in listdir(dir_path):
-        if file[-7:] == '_gt.png':
+        file_name, file_ending = file.split('.')
+        if file_name[-3:] == '_gt':
                 continue
 
-        if 'png' in file or 'jpg' in file:
+        if file_ending in ('png', 'jpg', 'tif', 'tiff', 'bmp'):
             old_path = os.path.join(dir_path, file)
             image = Image.open(old_path)
             formatted_name = file
-            if file[0:3] == 'GT-':
-                formatted_name = file[3:-4] + "_gt.png"
-            elif file[-7:-4] == '_GT':
-                formatted_name = file[:-7] + "_gt.png"
-            elif file[-6:-4] == 'GT':
-                formatted_name = file[:-6] + "_gt.png"
+            new_file_ending = "_gt.png"
+
+            if file_name[0:3] == 'GT-':
+                formatted_name = file_name[3:] + new_file_ending
+            elif file_name[-3:] == '_GT':
+                formatted_name = file_name[:-3] + new_file_ending
+            elif file_name[-2:] == 'GT':
+                formatted_name = file_name[:-2] + new_file_ending
             else:
-                formatted_name = file[:-4] + "_gt.png"
+                formatted_name = file_name + new_file_ending
 
             new_path = os.path.join(dir_path, formatted_name)
             image.save(new_path)
