@@ -13,7 +13,7 @@ def get_image_patches(image,imgh,imgw,reshape=None,overlap=0.1):
 	overlap_wid = int(imgw * overlap)
 	overlap_hig = int(imgh * overlap) 
 	
-	height, width, _ = image.shape 
+	height, width = image.shape 
 	
 	image_list = []
 	pos_list = []
@@ -29,6 +29,7 @@ def get_image_patches(image,imgh,imgw,reshape=None,overlap=0.1):
 			imgpath = image[ys:ye,xs:xe]
 			if reshape is not None:
 				imgpath = cv2.resize(imgpath.astype('float'), dsize=reshape)
+			imgpath = imgpath/255
 			image_list.append(imgpath)
 			pos = np.array([ys,xs,ye,xe])
 			pos_list.append(pos)
@@ -46,6 +47,7 @@ def get_image_patches(image,imgh,imgw,reshape=None,overlap=0.1):
 		imgpath = image[ys:ye,xs:xe]
 		if reshape is not None:
 			imgpath = cv2.resize(imgpath.astype('float'), dsize=reshape)
+		imgpath = imgpath/255
 		image_list.append(imgpath)
 		pos = np.array([ys,xs,ye,xe])
 		pos_list.append(pos)
@@ -63,6 +65,7 @@ def get_image_patches(image,imgh,imgw,reshape=None,overlap=0.1):
 		imgpath = image[ys:ye,xs:xe]
 		if reshape is not None:
 			imgpath = cv2.resize(imgpath.astype('float'), dsize=reshape)
+		imgpath = imgpath/255
 		image_list.append(imgpath)
 		pos = np.array([ys,xs,ye,xe])
 		pos_list.append(pos)
@@ -80,31 +83,58 @@ def get_image_patches(image,imgh,imgw,reshape=None,overlap=0.1):
 	imgpath = image[ys:ye,xs:xe]
 	if reshape is not None:
 		imgpath = cv2.resize(imgpath.astype('float'), dsize=reshape)
+
+	imgpath = imgpath/255
 	image_list.append(imgpath)
 	pos = np.array([ys,xs,ye,xe])
 	pos_list.append(pos)
 			
 	return image_list, pos_list
 
-if __name__ == "__main__":
+def create_dataset():
 	image_path = os.path.join("images","Original","HW6_11.png")
-	image = io.imread(image_path)
-	
-	original_height, original_width, _ = image.shape
-	reshape = (imgh_default, imgw_default)
+	image = io.imread(image_path, as_gray=True)
 
-	image_patches, pos_list = get_image_patches(image, int(0.5*original_height), int(0.5*original_width), reshape, overlap=4.0)
-	print(len(image_patches))
-	print(len(pos_list))
+	GT_path = os.path.join("images","GT","HW6_11.png")
+	GT = io.imread(GT_path, as_gray=True)
 	
-	fig = plt.figure(figsize=(8, 8))
-	for i in range(1, 2*2+1):
-		fig.add_subplot(2, 2, i)
-		plt.imshow(image_patches[i-1]/255)
-	plt.show()
+	original_height, original_width = image.shape
+	reshape = (256, 256)
+	SCALE = 1
 
-	io.imshow(image_patches[1]/255)
+	image_patches, pos_list = get_image_patches(image, int(SCALE*original_height), int(SCALE*original_width), reshape, overlap=0.1)
+	image_patches = np.stack(image_patches)	
+	image_patches = np.expand_dims(image_patches,axis=3)
+
+	GT_patches, GT_pos_list = get_image_patches(GT, int(SCALE*original_height), int(SCALE*original_width), reshape, overlap=0.1)
+	GT_patches = np.stack(GT_patches)	
+	GT_patches = np.expand_dims(GT_patches,axis=3)
+
+	dataset = np.array([image_patches, GT_patches])
+	return dataset
+
+if __name__ == "__main__":
+
+	dataset = create_dataset()
+	print(dataset)
+
+	io.imshow(dataset[0][0])
 	io.show()
 
-	# io.imshow(image)
-	# io.show()
+	# image_path = os.path.join("images","Original","HW6_11.png")
+	# image = io.imread(image_path)
+	
+	# original_height, original_width, _ = image.shape
+	# reshape = (imgh_default, imgw_default)
+
+	# image_patches, pos_list = get_image_patches(
+	# 	image, int(1*original_height), 
+	# 	int(1*original_width), reshape, overlap=0.1)
+	# print(len(image_patches))
+	# print(len(pos_list))
+	
+	# fig = plt.figure(figsize=(9, 9))
+	# for i in range(1, len(image_patches)+1):
+	# 	fig.add_subplot(1, 1, i)
+	# 	plt.imshow(image_patches[i-1]/255)
+	# plt.show()
