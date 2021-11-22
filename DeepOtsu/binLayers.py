@@ -27,6 +27,18 @@ def conv2d(inputs,kernel_size,num_outputs,name,stride_size=[1,1],padding='SAME',
 		if activation_fn is not None:
 			outputs = activation_fn(outputs)
 
+		w_prod = 1
+		for x in weights.get_shape():
+			w_prod *= int(x)
+		print("---------------conv2d--------------")
+		print(inputs.get_shape())
+		print(weights.get_shape())
+		print(bias.get_shape())
+		params = w_prod + int(bias.get_shape()[0])
+		print("params: " + str(params))
+		print(outputs.get_shape())
+		print("-----------------------------------")
+
 		return outputs
 
 def conv2d_bn(inputs,kernel_size,num_outputs,name,is_training=True,stride_size=[1,1],padding='SAME',activation_fn=tf.nn.relu):
@@ -98,10 +110,30 @@ def deconv_upsample(inputs,factor,name,padding='SAME',activation_fn=None):
 		weights = bilinear_upsample_weights(factor,num_filters_in)
 
 		outputs = tf.nn.conv2d_transpose(inputs,weights,output_shape,stride_shape,padding=padding)
+		print(inputs)
+		print(weights)
+		print(output_shape)
+		print(stride_shape)
+		print(padding)
+
+
+
 		outputs=tf.reshape(outputs,output_shape)
+
+
 
 		if activation_fn is not None:
 			outputs = activation_fn(outputs)
+
+		w_prod = 1
+		for x in weights.get_shape():
+			w_prod *= int(x)
+		print("-------------deconv_upsample-----------")
+		print(weights.get_shape())
+		params = w_prod
+		print("params: " + str(params))
+		print(outputs.get_shape())
+		print("---------------------------------------")
 
 		return outputs
 
@@ -152,12 +184,19 @@ def fully_connected(inputs,num_outputs,name,activation_fn=tf.nn.relu):
 def max_pooling(inputs,kernel_size,name,padding='SAME'):
 	kernel_shape = [1,kernel_size[0],kernel_size[1],1]
 	outputs = tf.nn.max_pool(inputs,ksize=kernel_shape,strides=kernel_shape,padding=padding,name=name)
+
+
+	print("--------------max_pooling------------")
+	print(inputs.get_shape())
+	print(outputs.get_shape())
+	print("-------------------------------------")
 	return outputs
 
 def dropout(intputs,keep_prob,name):
 	return tf.nn.dropout(inputs,keep_prob=keep_prob,name=name)
 
 def concat(inputs1,inputs2,name):
+	print("CONCAT!")
 	return tf.concat(axis=3,values=[inputs1,inputs2],name=name)
 
 def add(inputs1,inputs2,name,activation_fn):

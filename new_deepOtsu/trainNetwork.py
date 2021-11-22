@@ -6,18 +6,22 @@ def main():
 
 	print("GPUS Available: " + str(tf.config.list_physical_devices('GPU')))
 
-	net = network.unet()
+	#net = network.unet()
 
-	net.compile(optimizer='adam', 
-              loss=tf.losses.CategoricalCrossentropy(from_logits=True),
-              metrics=['accuracy'])
+	net = network.UNetBlock()
+
+	#net.compile(optimizer='adam', 
+    #          loss=tf.losses.CategoricalCrossentropy(from_logits=True),
+    #          metrics=['accuracy'])
+
 
 	train_dataset = utils.create_dataset()
 	val_dataset = utils.create_dataset()
 
-	net.fit(x=train_dataset[0], y=train_dataset[1])
+	#net.fit(x=train_dataset[0], y=train_dataset[1])
+	#net.build()
 
-	print(net.summary())
+	print(net.model().summary())
 
 if __name__ == "__main__":
 	main()
