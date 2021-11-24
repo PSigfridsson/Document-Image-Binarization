@@ -4,9 +4,9 @@ from tensorflow.keras.layers import concatenate
 from tensorflow.keras.optimizers import *
 from tensorflow.keras.callbacks import ModelCheckpoint, Callback,  EarlyStopping, ReduceLROnPlateau
 import numpy as np
+import pandas as pd
 from matplotlib import pyplot as plt
 from os import makedirs
-import pandas as pd
 import os
 from skimage.filters import threshold_otsu, threshold_niblack, threshold_sauvola
 from sklearn.metrics import jaccard_score
@@ -14,7 +14,7 @@ from keras.preprocessing.image import ImageDataGenerator, array_to_img
 import cv2
 import statistics
 
-USE_GPU = True
+USE_GPU = False
 IMG_MODEL_SIZE = 128
 
 
@@ -331,9 +331,9 @@ if __name__ == '__main__':
     check_gpu()
     my_unet = myUnet()
 
-    #data_path = os.path.join('..', 'destination')
-    #checkpoint_file = '..//model//unet_testing_dataset.hdf5'
-    #my_unet.train(data_path, checkpoint_file, epochs=5)
+   # data_path = os.path.join('..', 'destination')
+   # checkpoint_file = '..//model//unet_testing_dataset.hdf5'
+   # my_unet.train(data_path, checkpoint_file, epochs=5)
 
     #If you want to test the model just uncomment the following code
     #Pre-trained model
