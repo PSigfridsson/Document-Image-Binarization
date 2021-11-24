@@ -14,8 +14,8 @@ from keras.preprocessing.image import ImageDataGenerator, array_to_img
 import cv2
 import statistics
 
-USE_GPU = False
-IMG_MODEL_SIZE = 128
+USE_GPU = True
+IMG_MODEL_SIZE = 256
 
 
 def loader(batch_size, train_path, image_folder, mask_folder, mask_color_mode="grayscale", target_size=(128, 128), save_to_dir=None):
@@ -331,9 +331,9 @@ if __name__ == '__main__':
     check_gpu()
     my_unet = myUnet()
 
-   # data_path = os.path.join('..', 'destination')
-   # checkpoint_file = '..//model//unet_testing_dataset.hdf5'
-   # my_unet.train(data_path, checkpoint_file, epochs=5)
+    data_path = os.path.join('..', 'destination')
+    checkpoint_file = '..//model//unet_testing_dataset.hdf5'
+    my_unet.train(data_path, checkpoint_file, epochs=5)
 
     #If you want to test the model just uncomment the following code
     #Pre-trained model
