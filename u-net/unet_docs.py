@@ -13,8 +13,55 @@ from sklearn.metrics import jaccard_score, mean_squared_error
 from keras.preprocessing.image import ImageDataGenerator, array_to_img
 import cv2
 import statistics
+import argparse
+from itertools import chain
 
-USE_GPU = True
+parser = argparse.ArgumentParser(
+    description='Runs the script %(prog)s with the specified parameters',
+    usage='%(prog)s model_1 + optional parameters ',
+    epilog='Good luck champ!')
+
+parser.add_argument('-ep',
+                    help='number of epochs',
+                    action="store",
+                    type=int)
+parser.add_argument('-bs',
+                    help='batch size',
+                    action="store",
+                    type=int)
+parser.add_argument('-se',
+                    help='steps per epoch',
+                    action="store",
+                    type=int)
+parser.add_argument('-ds',
+                    help='names of the data sets to use',
+                    action="store",
+                    nargs='*')
+parser.add_argument('-lr',
+                    help='learning rate for the neural network',
+                    action="store",
+                    type=int)
+parser.add_argument('-f',
+                    help='factor',
+                    action="store",
+                    type=int)
+parser.add_argument('-p',
+                    help='patience',
+                    action="store",
+                    type=int)
+parser.add_argument('-name',
+                    help='name of the model',
+                    action="store",
+                    type=str)
+parser.add_argument('-gpu',
+                    help='yes/no - use gpu or not',
+                    action="store",
+                    type=str)
+parser.add_argument('-pred',
+                    help='yes/no - predict or train, default train',
+                    action="store",
+                    type=str)
+USE_GPU = False
 IMG_MODEL_SIZE = 128
 
 
@@ -22,16 +69,16 @@ def loader(batch_size, train_path, image_folder, mask_folder, mask_color_mode="g
     image_datagen = ImageDataGenerator(rescale=1. / 255)
     mask_datagen = ImageDataGenerator(rescale=1. / 255)
 
+
     image_generator = image_datagen.flow_from_directory(train_path, classes=[image_folder], class_mode=None,
                                                         color_mode=mask_color_mode, target_size=target_size,
                                                         batch_size=batch_size, save_to_dir=save_to_dir, seed=1)
 
     mask_generator = mask_datagen.flow_from_directory(train_path, classes=[mask_folder], class_mode=None,
-                                                      color_mode=mask_color_mode, target_size=target_size,
-                                                      batch_size=batch_size, save_to_dir=save_to_dir, seed=1)
+                                                    color_mode=mask_color_mode, target_size=target_size,
+                                                    batch_size=batch_size, save_to_dir=save_to_dir, seed=1)
+    print("Generating data path:", train_path)
     train_generator = zip(image_generator, mask_generator)
-    print(image_generator)
-    print(mask_generator)
     for (img, mask) in train_generator:
         yield (img, mask)
 
@@ -138,20 +185,18 @@ class myUnet(Callback):
 
         return model
 
-    def train(self, data_path, checkpoint_file, epochs=50):
+    def train(self, checkpoint_file, data_paths, epochs=50, factor=0.1, patience=5, min_lr=0.00001, steps_per_epoch=232, batch_size=1):
         model = self.get_unet()
         print("got unet")
 
         model_checkpoint = ModelCheckpoint(checkpoint_file, monitor='loss', verbose=1, save_best_only=True)
-        early_stopping = EarlyStopping(patience=20, verbose=1)
-        reduce_lr = ReduceLROnPlateau(factor=0.1, patience=5, min_lr=0.00001, verbose=1)
+        early_stopping = EarlyStopping(patience=patience, verbose=1)
+        reduce_lr = ReduceLROnPlateau(factor=factor, patience=patience, min_lr=min_lr, verbose=1)
         print('Fitting model...')
 
-        ld = loader(1, data_path, 'Originals', 'GT')
-
-        history = model.fit_generator(ld, epochs=epochs, verbose=1, shuffle=True, steps_per_epoch=116, callbacks=[reduce_lr, early_stopping,model_checkpoint, self])
-
-        pd.DataFrame(history.history).plot(figsize=(8, 5))
+        for path in data_paths:
+            ld = loader(batch_size, path, 'Originals', 'GT')
+            model.fit_generator(ld, epochs=epochs, verbose=1, shuffle=True, steps_per_epoch=steps_per_epoch, callbacks=[reduce_lr, early_stopping,model_checkpoint, self])
 
     def prepare_image_predict(self, input_image):
         img = cv2.imread(input_image, cv2.IMREAD_GRAYSCALE)
@@ -324,16 +369,59 @@ def test_predict(u_net, model):
         print('Image', image, '- U-Net IoU:', results[index][0], 'PSNR:', results[index][1], 'MSE:', results[index][2])
 
 
-if __name__ == '__main__':
-    check_gpu()
-    my_unet = myUnet()
+def set_params_train(args):
+    """ sets parameters and trains the model
+    with data defined by user
+    """
+    print(args)
+    if args.gpu is not None and args.gpu == 'yes':
+        USE_GPU = True
+        check_gpu()
+    else:
+        USE_GPU = False
+    checkpoint_file = '..//model//' + args.name + '.hdf5' if args.name is not None else \
+        '..//model//unet_testing_dataset.hdf5'
+    data_paths = []
+    if args.ds is not None:
+        for ds in args.ds:
+            path = os.path.join('..', 'destination', ds)
+            data_paths.append(path)
+    else:
+        data_paths.append(os.path.join('..', 'destination'))
 
-    data_path = os.path.join('..', 'destination')
-    checkpoint_file = '..//model//unet_testing_dataset.hdf5'
-    my_unet.train(data_path, checkpoint_file, epochs=1)
+    bs = args.bs if args.bs is not None else 1
+    ep = args.ep if args.ep is not None else 50
+    f = args.f if args.f is not None else .1
+    lr = args.lr if args.lr is not None else 0.00001
+    p = args.p if args.p is not None else 20
+    se = args.se if args.se is not None else 300
+
+    my_unet = myUnet()
+    my_unet.train(checkpoint_file, data_paths, batch_size=bs, epochs=ep, factor=f, min_lr=lr, patience=p, steps_per_epoch=se)
+
+def load_model_predict(model_name='unet_testing_dataset.hdf5'):
+    my_unet = myUnet()
+    model = os.path.join('..', 'model', model_name + '.hdf5')
+    test_predict(my_unet, model)
+
+
+if __name__ == '__main__':
+    args = parser.parse_args()
+    if args.pred == 'yes':
+        if args.name is not None:
+            load_model_predict(args.name)
+        else:
+            print("Give model name please.")
+            exit(0)
+    set_params_train(args)
+    #check_gpu() 
+    #my_unet = myUnet()
+    #test_predict(my_unet, model)
+
+    #data_path = os.path.join('..', 'destination')
+    #checkpoint_file = '..//model//unet_testing_dataset.hdf5'
+    #my_unet.train(data_path, checkpoint_file, epochs=1)
 
     #If you want to test the model just uncomment the following code
     #Pre-trained model
-    model = os.path.join('..', 'model', 'unet_testing_dataset.hdf5')
-    test_predict(my_unet, model)
-
+    #model = os.path.join('..', 'model', 'unet_testing_dataset.hdf5')
