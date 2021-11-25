@@ -3,11 +3,21 @@ import network
 import utils
 from skimage import io
 import numpy as np
+import os
+import inspect
+import sys
+
+currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+parentdir = os.path.dirname(currentdir)
+unetdir = os.path.join(parentdir,"u-net")
+sys.path.insert(0, unetdir) 
+
+import unet_docs
 
 def main():
 
-	print("GPUS Available: " + str(tf.config.list_physical_devices('GPU')))
 
+	"""
 	net = network.UNetBlock()
 
 	net.compile(optimizer='adam', 
@@ -34,6 +44,20 @@ def main():
 	io.imshow(preds)
 	io.show()
 	#print(net.model().summary())
+	"""
+
+	print("GPUS Available: " + str(tf.config.list_physical_devices('GPU')))
+	my_unet = unet_docs.myUnet()
+
+	#data_path = os.path.join('hampus_dataset')
+	#checkpoint_file = os.path.join('unet_testing_dataset.hdf5')
+	#my_unet.train(data_path, checkpoint_file, epochs=1)
+
+	model = os.path.join('unet_testing_dataset.hdf5')
+	unet_docs.test_predict(my_unet, model)
+
+
+
 
 if __name__ == "__main__":
 	main()

@@ -10,7 +10,7 @@ import pandas as pd
 import os
 from skimage.filters import threshold_otsu, threshold_niblack, threshold_sauvola
 from sklearn.metrics import jaccard_score
-from keras.preprocessing.image import ImageDataGenerator, array_to_img
+from tensorflow.keras.preprocessing.image import ImageDataGenerator, array_to_img
 import cv2
 import statistics
 
@@ -243,6 +243,10 @@ class myUnet(Callback):
         print('predicting test data')
         imgs_mask_test = model.predict(parts, batch_size=1, verbose=1)
 
+        # Binarization (output from neural network is greyscale)
+        #result_sauvola = threshold_sauvola() instead of 0.5 ?
+        #imgs_mask_test = ((imgs_mask_test > 0.9)).astype(np.float32)
+
         return self.restore_image(imgs_mask_test, dim)
 
 
@@ -283,14 +287,20 @@ class myUnet(Callback):
 
 
 def test_predict(u_net, model):
-    images = os.listdir(os.path.join('..', 'images'))
+    images_path = os.path.join('..', 'images', 'Originals')
+    print(images_path)
+    images = os.listdir(images_path)
+    print(images)
     results = []
     for image in images:
-        ground_truth = cv2.imread(os.path.join('..', 'GT', image[:-4] + '_gt.png'), cv2.IMREAD_GRAYSCALE)
-        current_image = os.path.join('..', 'images', image)
-        result_unet = u_net.binarise_image(model_weights=model, input_image=current_image)
-
+        gt_path = os.path.join('..', 'images', 'GT', image[:-4] + '_gt.png')
+        #print(gt_path)
+        ground_truth = cv2.imread(gt_path, cv2.IMREAD_GRAYSCALE)
+        current_image = os.path.join('..', 'images', 'Originals', image)
         image_read = cv2.imread(current_image, cv2.IMREAD_GRAYSCALE)
+
+        result_unet = u_net.binarise_image(model_weights=model, input_image=current_image)
+        #result_unet = ((image_read > result_unet) * 255).astype(np.uint8)
         ressult_otsu = threshold_otsu(image_read)
         result_otsu = ((image_read > ressult_otsu) * 255).astype(np.uint8)
         result_sauvola = threshold_sauvola(image_read)
@@ -299,10 +309,21 @@ def test_predict(u_net, model):
         result_niblack = threshold_niblack(image_read, window_size=window_size, k=0.8)
         result_niblack = ((image_read > result_niblack) * 255).astype(np.uint8)
 
+        #print(result_unet.shape)
+        #print("------")
+        #print(result_niblack.shape)
+        #exit()
+
+
+        # FIX ground_truth and output from unet to be binarized (0 or 255)
+        ground_truth = ((ground_truth > 128) * 255).astype(np.uint8)
+        #result_unet = result_unet[:,:,0]
+        #result_unet = ((result_unet > 128) * 255).astype(np.uint8)
+        #for pixel in result_unet:
+        #    print(pixel)
+
         img_true = np.array(ground_truth).ravel()
         img_pred = np.array(result_niblack).ravel()
-        print(img_true)
-        print(img_pred)
         iou_niblack = statistics.mean(jaccard_score(img_true, img_pred, average=None))
         cv2.imwrite(os.path.join('..', 'results', image[:-4] + '_' + str(iou_niblack)[:5] + '_niblack_.png'),
                     result_niblack)
@@ -317,6 +338,8 @@ def test_predict(u_net, model):
                     result_sauvola)
 
         img_pred = np.array(result_unet).ravel()
+        print(img_true)
+        print(img_pred)
         iou_unet = statistics.mean(jaccard_score(img_true, img_pred, average=None))
         cv2.imwrite(os.path.join('..', 'results', image[:-4] + '_' + str(iou_unet)[:5] + '_unet_.png'), result_unet)
 
