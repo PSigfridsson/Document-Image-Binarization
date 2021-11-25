@@ -14,7 +14,6 @@ from keras.preprocessing.image import ImageDataGenerator, array_to_img
 import cv2
 import statistics
 import argparse
-from itertools import chain
 
 parser = argparse.ArgumentParser(
     description='Runs the script %(prog)s with the specified parameters',
@@ -412,7 +411,6 @@ if __name__ == '__main__':
             load_model_predict(args.name)
         else:
             print("Give model name please.")
-            exit(0)
     else:
         set_params_train(args)
     #check_gpu() 
