@@ -413,7 +413,8 @@ if __name__ == '__main__':
         else:
             print("Give model name please.")
             exit(0)
-    set_params_train(args)
+    else:
+        set_params_train(args)
     #check_gpu() 
     #my_unet = myUnet()
     #test_predict(my_unet, model)
