@@ -9,12 +9,12 @@ from matplotlib import pyplot as plt
 from os import makedirs
 import os
 from skimage.filters import threshold_otsu, threshold_niblack, threshold_sauvola
-from sklearn.metrics import jaccard_score
+from sklearn.metrics import jaccard_score, mean_squared_error
 from keras.preprocessing.image import ImageDataGenerator, array_to_img
 import cv2
 import statistics
 
-USE_GPU = False
+USE_GPU = True
 IMG_MODEL_SIZE = 128
 
 
@@ -33,7 +33,6 @@ def loader(batch_size, train_path, image_folder, mask_folder, mask_color_mode="g
     print(image_generator)
     print(mask_generator)
     for (img, mask) in train_generator:
-        
         yield (img, mask)
 
 
@@ -138,7 +137,6 @@ class myUnet(Callback):
         model.compile(optimizer=Adam(lr=1e-4), loss='binary_crossentropy', metrics=['accuracy'])
 
         return model
-
 
     def train(self, data_path, checkpoint_file, epochs=50):
         model = self.get_unet()
@@ -289,42 +287,41 @@ def test_predict(u_net, model):
         ground_truth = cv2.imread(os.path.join('..', 'GT', image[:-4] + '_gt.png'), cv2.IMREAD_GRAYSCALE)
         current_image = os.path.join('..', 'images', image)
         result_unet = u_net.binarise_image(model_weights=model, input_image=current_image)
-
-        image_read = cv2.imread(current_image, cv2.IMREAD_GRAYSCALE)
-        ressult_otsu = threshold_otsu(image_read)
-        result_otsu = ((image_read > ressult_otsu) * 255).astype(np.uint8)
-        result_sauvola = threshold_sauvola(image_read)
-        result_sauvola = ((image_read > result_sauvola) * 255).astype(np.uint8)
-        window_size = 25
-        result_niblack = threshold_niblack(image_read, window_size=window_size, k=0.8)
-        result_niblack = ((image_read > result_niblack) * 255).astype(np.uint8)
-
+        result_otsu = threshold_otsu(result_unet)
+       # result_otsu = threshold_otsu(image_read)
+        result_unetotsu = ((result_unet > result_otsu) * 255).astype(np.uint8)
+       # result_sauvola = threshold_sauvola(image_read)
+       # result_sauvola = ((image_read > result_sauvola) * 255).astype(np.uint8)
+       # window_size = 25
+       # result_niblack = threshold_niblack(image_read, window_size=window_size, k=0.8)
+       # result_niblack = ((image_read > result_niblack) * 255).astype(np.uint8)
+        
+       
         img_true = np.array(ground_truth).ravel()
-        img_pred = np.array(result_niblack).ravel()
-        print(img_true)
-        print(img_pred)
-        iou_niblack = statistics.mean(jaccard_score(img_true, img_pred, average=None))
-        cv2.imwrite(os.path.join('..', 'results', image[:-4] + '_' + str(iou_niblack)[:5] + '_niblack_.png'),
-                    result_niblack)
+        #iou_niblack = statistics.mean(jaccard_score(img_true, img_pred, average=None))
+        #cv2.imwrite(os.path.join('..', 'results', image[:-4] + '_' + str(iou_niblack)[:5] + '_niblack_.png'),
+        #           result_niblack)
 
-        img_pred = np.array(result_otsu).ravel()
-        iou_otsu = statistics.mean(jaccard_score(img_true, img_pred, average=None))
-        cv2.imwrite(os.path.join('..', 'results', image[:-4] + '_' + str(iou_otsu)[:5] + '_otsu_.png'), result_otsu)
+        #img_pred = np.array(result_otsu).ravel()
+        #iou_otsu = statistics.mean(jaccard_score(img_true, img_pred, average=None))
+        #cv2.imwrite(os.path.join('..', 'results', image[:-4] + '_' + str(iou_otsu)[:5] + '_otsu_.png'), result_otsu)
 
-        img_pred = np.array(result_sauvola).ravel()
-        iou_sauvola = statistics.mean(jaccard_score(img_true, img_pred, average=None))
-        cv2.imwrite(os.path.join('..', 'results', image[:-4] + '_' + str(iou_sauvola)[:5] + '_sauvola_.png'),
-                    result_sauvola)
+        #img_pred = np.array(result_sauvola).ravel()
+        #iou_sauvola = statistics.mean(jaccard_score(img_true, img_pred, average=None))
+        #cv2.imwrite(os.path.join('..', 'results', image[:-4] + '_' + str(iou_sauvola)[:5] + '_sauvola_.png'),
+        #            result_sauvola)
 
-        img_pred = np.array(result_unet).ravel()
+        img_pred = np.array(result_unetotsu).ravel()
         iou_unet = statistics.mean(jaccard_score(img_true, img_pred, average=None))
+        psnr_unet = cv2.PSNR(img_true, img_pred)
+        mse_unet = mean_squared_error(img_true, img_pred)
         cv2.imwrite(os.path.join('..', 'results', image[:-4] + '_' + str(iou_unet)[:5] + '_unet_.png'), result_unet)
+        cv2.imwrite(os.path.join('..', 'results', image[:-4] + '_' + str(iou_unet)[:5] + '_unet_otsu_.png'), result_unetotsu)
 
-        results.append([iou_unet, iou_otsu, iou_sauvola, iou_niblack])
+        results.append([iou_unet,psnr_unet,mse_unet])
 
     for index, image in enumerate(images):
-        print('Image', image, '- U-Net IoU:', results[index][0], 'Otsu IoU:', results[index][1], 'Sauvola IoU:',
-              results[index][2], 'Niblack IoU:', results[index][3])
+        print('Image', image, '- U-Net IoU:', results[index][0], 'PSNR:', results[index][1], 'MSE:', results[index][2])
 
 
 if __name__ == '__main__':
