@@ -18,7 +18,7 @@ USE_GPU = True
 IMG_MODEL_SIZE = 128
 
 
-def loader(batch_size, train_path, image_folder, mask_folder, mask_color_mode="grayscale", target_size=(128, 128), save_to_dir=None):
+def loader(batch_size, train_path, image_folder, mask_folder, mask_color_mode="grayscale", target_size=(128, 128), save_to_dir=None, deepOtsu=False):
     image_datagen = ImageDataGenerator(rescale=1. / 255)
     mask_datagen = ImageDataGenerator(rescale=1. / 255)
 
@@ -30,12 +30,12 @@ def loader(batch_size, train_path, image_folder, mask_folder, mask_color_mode="g
                                                       color_mode=mask_color_mode, target_size=target_size,
                                                       batch_size=batch_size, save_to_dir=save_to_dir, seed=1)
     train_generator = zip(image_generator, mask_generator)
-    print(image_generator)
-    print(mask_generator)
-    for (img, mask) in train_generator:
-        
-        yield (img, mask)
 
+    for (img, mask) in train_generator:
+        if deepOtsu:
+            yield (img, mask-img)
+        else:
+            yield (img, mask)
 
 def check_gpu():
     if USE_GPU:
@@ -140,7 +140,7 @@ class myUnet(Callback):
         return model
 
 
-    def train(self, data_path, checkpoint_file, epochs=50):
+    def train(self, data_path, checkpoint_file, epochs=50, deepOtsu=False):
         model = self.get_unet()
         print("got unet")
 
@@ -149,10 +149,9 @@ class myUnet(Callback):
         reduce_lr = ReduceLROnPlateau(factor=0.1, patience=5, min_lr=0.00001, verbose=1)
         print('Fitting model...')
 
-        ld = loader(1, data_path, 'Originals', 'GT')
+        ld = loader(1, data_path, 'Originals', 'GT', deepOtsu=deepOtsu)
 
         history = model.fit_generator(ld, epochs=epochs, verbose=1, shuffle=True, steps_per_epoch=1000, callbacks=[reduce_lr, early_stopping,model_checkpoint, self])
-
         pd.DataFrame(history.history).plot(figsize=(8, 5))
 
     def prepare_image_predict(self, input_image):
@@ -226,7 +225,7 @@ class myUnet(Callback):
         return result
 
 
-    def binarise_image(self, model_weights, input_image):
+    def binarise_image(self, model_weights, input_image, deepOtsu=False):
         print("loading image")
         parts, dim = self.prepare_image_predict(input_image=input_image)
         #imgs_train, imgs_mask_train, imgs_test = self.load_data()
@@ -247,7 +246,13 @@ class myUnet(Callback):
         #result_sauvola = threshold_sauvola() instead of 0.5 ?
         #imgs_mask_test = ((imgs_mask_test > 0.9)).astype(np.float32)
 
-        return self.restore_image(imgs_mask_test, dim)
+        if deepOtsu:
+            neg_e = self.restore_image(imgs_mask_test, dim)
+            x = cv2.imread(input_image, cv2.IMREAD_GRAYSCALE)
+            xu = neg_e[:,:,0] + x
+            return xu
+        else:
+            return self.restore_image(imgs_mask_test, dim)
 
 
     def save_epoch_results(self):
@@ -286,7 +291,7 @@ class myUnet(Callback):
         plt.show()
 
 
-def test_predict(u_net, model):
+def test_predict(u_net, model, deepOtsu=False):
     images_path = os.path.join('..', 'images', 'Originals')
     print(images_path)
     images = os.listdir(images_path)
@@ -299,8 +304,10 @@ def test_predict(u_net, model):
         current_image = os.path.join('..', 'images', 'Originals', image)
         image_read = cv2.imread(current_image, cv2.IMREAD_GRAYSCALE)
 
-        result_unet = u_net.binarise_image(model_weights=model, input_image=current_image)
-        #result_unet = ((image_read > result_unet) * 255).astype(np.uint8)
+        result_unet = u_net.binarise_image(model_weights=model, input_image=current_image, deepOtsu=deepOtsu)
+        if deepOtsu:  
+            ressult_otsu = threshold_otsu(result_unet)
+            result_unet = ((result_unet > ressult_otsu) * 255).astype(np.uint8)
         ressult_otsu = threshold_otsu(image_read)
         result_otsu = ((image_read > ressult_otsu) * 255).astype(np.uint8)
         result_sauvola = threshold_sauvola(image_read)
