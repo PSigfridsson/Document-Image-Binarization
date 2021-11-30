@@ -5,7 +5,7 @@ import cv2
 from PIL import Image
 from skimage.util import random_noise
 
-IMG_MODEL_SIZE = 128
+IMG_MODEL_SIZE = 256
 
 
 def rotate_img(img, rt_degr):
