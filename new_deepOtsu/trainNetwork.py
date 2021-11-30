@@ -5,12 +5,12 @@ import os
 import inspect
 import sys
 import cv2
-import unet_docs
+import unet
 
 def main():
 
 	print("GPUS Available: " + str(tf.config.list_physical_devices('GPU')))
-	my_unet = unet_docs.myUnet()
+	my_unet = unet.myUnet()
 
 	train_net(my_unet)
 	#predict_net(my_unet)
@@ -35,7 +35,7 @@ def train_net(my_unet):
 
 def predict_net(my_unet):
 	model = os.path.join('unet_testing_dataset.hdf5')
-	unet_docs.test_predict(my_unet, model)
+	unet.test_predict(my_unet, model)
 
 if __name__ == "__main__":
 	main()
