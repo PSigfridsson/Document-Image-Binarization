@@ -231,8 +231,6 @@ def main(argv=None):
 	num_block = FLAGS.num_block
 
 	bin_pred_list = net.buildnet(image,num_block,nlayers)
-	
-		
 	model_saver = tf.train.Saver()
 	
 	sess = tf.Session()
@@ -249,6 +247,9 @@ def main(argv=None):
 		print("Model restored...")
 		print('*'*20)
 	
+
+	params = np.sum([np.prod(v.get_shape().as_list()) for v in tf.trainable_variables()])
+	print("params: " + str(params))
 	#image_test_dir = '/mantis/PaperWork/binary/dataset/test/'+FLAGS.dataset+'/'
 	image_test_dir = FLAGS.dataset
 
