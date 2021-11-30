@@ -201,19 +201,12 @@ def rename_dataset(root_path):
                 os.rename(os.path.join(root_path, 'GT', gt[index]),
                           os.path.join(root_path, 'GT', originals[index][:-3]+'png'))
 
-def invert():
-    pp = 'D:\\Roe\\Medium\\data\\ICDAR\\2017\\GTi'
-    files = os.listdir(pp)
-    for file in files:
-        image = cv2.imread(os.path.join(pp, file))
-        cv2.imwrite(os.path.join('D:\\Roe\\Medium\\data\\ICDAR\\2017\\GT', file), 255 - image)
-
 
 import sys
 if __name__ == '__main__':
     #root = 'D:\\Roe\\Medium\\data'
-    testdest = os.path.join('..','destination')
-    testfiles = os.path.join('..', 'datasets')
+    testdest = os.path.join('..','..','destination')
+    testfiles = os.path.join('..','..', 'datasets')
     create_augmentation(testfiles, testdest)
     #img = cv2.imread('D:\\Roe\\Medium\\paper_to\\unet\\figs\\63-IMG_MAX_881468.jpg')
     #cut_image(img, 256)
