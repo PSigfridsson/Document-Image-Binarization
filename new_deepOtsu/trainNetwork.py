@@ -5,12 +5,6 @@ import os
 import inspect
 import sys
 import cv2
-
-currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
-parentdir = os.path.dirname(currentdir)
-unetdir = os.path.join(parentdir,"u-net")
-sys.path.insert(0, unetdir) 
-
 import unet_docs
 
 def main():
@@ -18,8 +12,8 @@ def main():
 	print("GPUS Available: " + str(tf.config.list_physical_devices('GPU')))
 	my_unet = unet_docs.myUnet()
 
-	#train_net(my_unet)
-	predict_net(my_unet)
+	train_net(my_unet)
+	#predict_net(my_unet)
 
 
 	# gt_path = os.path.join('..','images','GT','1-IMG_MAX_10002_orig_11_gt.png')
@@ -37,11 +31,11 @@ def main():
 def train_net(my_unet):
 	data_path = os.path.join('hampus_dataset')
 	checkpoint_file = os.path.join('unet_testing_dataset.hdf5')
-	my_unet.train(data_path, checkpoint_file, epochs=1, deepOtsu=True)
+	my_unet.train(data_path, checkpoint_file, epochs=1)
 
 def predict_net(my_unet):
 	model = os.path.join('unet_testing_dataset.hdf5')
-	unet_docs.test_predict(my_unet, model, deepOtsu=True)
+	unet_docs.test_predict(my_unet, model)
 
 if __name__ == "__main__":
 	main()
