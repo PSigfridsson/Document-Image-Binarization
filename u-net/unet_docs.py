@@ -383,10 +383,10 @@ def set_params_train(args):
     data_paths = []
     if args.ds is not None:
         for ds in args.ds:
-            path = os.path.join('..', 'destination', ds)
+            path = os.path.join('..','..', 'destination', ds)
             data_paths.append(path)
     else:
-        data_paths.append(os.path.join('..', 'destination'))
+        data_paths.append(os.path.join('..','..', 'destination'))
 
     bs = args.bs if args.bs is not None else 1
     ep = args.ep if args.ep is not None else 50
