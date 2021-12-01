@@ -4,5 +4,5 @@
 #SBATCH -t 0-00:60:00
 
 
-cd u-net
+cd ../u-net
 python3 unet_docs.py

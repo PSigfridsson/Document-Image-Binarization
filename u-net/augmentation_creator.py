@@ -5,7 +5,7 @@ import cv2
 from PIL import Image
 from skimage.util import random_noise
 
-IMG_MODEL_SIZE = 256
+IMG_MODEL_SIZE = 128
 
 
 def rotate_img(img, rt_degr):
@@ -120,14 +120,14 @@ def create_augmentation(root_files_path, destination_path):
                     name_augm = names[index]
                     cuts_originals = cut_image(images_augmentation_original[index], cut_step)
                     cuts_gt = cut_image(images_augmentation_gt[index], cut_step)
-                    for cut in cuts_originals:
-                          name = file[:-4] + name_augm + '.png'
+                    for i,cut in enumerate(cuts_originals):
+                          name = file[:-4] + name_augm + '_' + str(i) + '.png'
                           print(name)
 
                           cv2.imwrite(os.path.join(destination_path, 'Originals', name), cut)
 
-                    for cut in cuts_gt:
-                          name = file[:-4] + name_augm + '_' + "gt"+'.png'
+                    for i,cut in enumerate(cuts_gt):
+                          name = file[:-4] + name_augm + '_' + str(i) + '_' + "gt" + '.png'
                           print(name)
 
                           cv2.imwrite(os.path.join(destination_path, 'GT', name), cut)
