@@ -9,11 +9,57 @@ from matplotlib import pyplot as plt
 from os import makedirs
 import os
 from skimage.filters import threshold_otsu, threshold_niblack, threshold_sauvola
-from sklearn.metrics import jaccard_score
+from sklearn.metrics import jaccard_score, mean_squared_error
 from keras.preprocessing.image import ImageDataGenerator, array_to_img
 import cv2
 import statistics
+import argparse
 
+parser = argparse.ArgumentParser(
+    description='Runs the script %(prog)s with the specified parameters',
+    usage='%(prog)s model_1 + optional parameters ',
+    epilog='Good luck champ!')
+
+parser.add_argument('-ep',
+                    help='number of epochs',
+                    action="store",
+                    type=int)
+parser.add_argument('-bs',
+                    help='batch size',
+                    action="store",
+                    type=int)
+parser.add_argument('-se',
+                    help='steps per epoch',
+                    action="store",
+                    type=int)
+parser.add_argument('-ds',
+                    help='names of the data sets to use',
+                    action="store",
+                    nargs='*')
+parser.add_argument('-lr',
+                    help='learning rate for the neural network',
+                    action="store",
+                    type=int)
+parser.add_argument('-f',
+                    help='factor',
+                    action="store",
+                    type=int)
+parser.add_argument('-p',
+                    help='patience',
+                    action="store",
+                    type=int)
+parser.add_argument('-name',
+                    help='name of the model',
+                    action="store",
+                    type=str)
+parser.add_argument('-gpu',
+                    help='yes/no - use gpu or not',
+                    action="store",
+                    type=str)
+parser.add_argument('-pred',
+                    help='yes/no - predict or train, default train',
+                    action="store",
+                    type=str)
 USE_GPU = False
 IMG_MODEL_SIZE = 128
 
@@ -22,18 +68,17 @@ def loader(batch_size, train_path, image_folder, mask_folder, mask_color_mode="g
     image_datagen = ImageDataGenerator(rescale=1. / 255)
     mask_datagen = ImageDataGenerator(rescale=1. / 255)
 
+
     image_generator = image_datagen.flow_from_directory(train_path, classes=[image_folder], class_mode=None,
                                                         color_mode=mask_color_mode, target_size=target_size,
                                                         batch_size=batch_size, save_to_dir=save_to_dir, seed=1)
 
     mask_generator = mask_datagen.flow_from_directory(train_path, classes=[mask_folder], class_mode=None,
-                                                      color_mode=mask_color_mode, target_size=target_size,
-                                                      batch_size=batch_size, save_to_dir=save_to_dir, seed=1)
+                                                    color_mode=mask_color_mode, target_size=target_size,
+                                                    batch_size=batch_size, save_to_dir=save_to_dir, seed=1)
+    print("Generating data path:", train_path)
     train_generator = zip(image_generator, mask_generator)
-    print(image_generator)
-    print(mask_generator)
     for (img, mask) in train_generator:
-        
         yield (img, mask)
 
 
@@ -139,21 +184,18 @@ class myUnet(Callback):
 
         return model
 
-
-    def train(self, data_path, checkpoint_file, epochs=50):
+    def train(self, checkpoint_file, data_paths, epochs=50, factor=0.1, patience=5, min_lr=0.00001, steps_per_epoch=232, batch_size=1):
         model = self.get_unet()
         print("got unet")
 
         model_checkpoint = ModelCheckpoint(checkpoint_file, monitor='loss', verbose=1, save_best_only=True)
-        early_stopping = EarlyStopping(patience=20, verbose=1)
-        reduce_lr = ReduceLROnPlateau(factor=0.1, patience=5, min_lr=0.00001, verbose=1)
+        early_stopping = EarlyStopping(patience=patience, verbose=1)
+        reduce_lr = ReduceLROnPlateau(factor=factor, patience=patience, min_lr=min_lr, verbose=1)
         print('Fitting model...')
 
-        ld = loader(1, data_path, 'Originals', 'GT')
-
-        history = model.fit_generator(ld, epochs=epochs, verbose=1, shuffle=True, steps_per_epoch=116, callbacks=[reduce_lr, early_stopping,model_checkpoint, self])
-
-        pd.DataFrame(history.history).plot(figsize=(8, 5))
+        for path in data_paths:
+            ld = loader(batch_size, path, 'Originals', 'GT')
+            model.fit_generator(ld, epochs=epochs, verbose=1, shuffle=True, steps_per_epoch=steps_per_epoch, callbacks=[reduce_lr, early_stopping,model_checkpoint, self])
 
     def prepare_image_predict(self, input_image):
         img = cv2.imread(input_image, cv2.IMREAD_GRAYSCALE)
@@ -289,54 +331,96 @@ def test_predict(u_net, model):
         ground_truth = cv2.imread(os.path.join('..', 'GT', image[:-4] + '_gt.png'), cv2.IMREAD_GRAYSCALE)
         current_image = os.path.join('..', 'images', image)
         result_unet = u_net.binarise_image(model_weights=model, input_image=current_image)
-
-        image_read = cv2.imread(current_image, cv2.IMREAD_GRAYSCALE)
-        ressult_otsu = threshold_otsu(image_read)
-        result_otsu = ((image_read > ressult_otsu) * 255).astype(np.uint8)
-        result_sauvola = threshold_sauvola(image_read)
-        result_sauvola = ((image_read > result_sauvola) * 255).astype(np.uint8)
-        window_size = 25
-        result_niblack = threshold_niblack(image_read, window_size=window_size, k=0.8)
-        result_niblack = ((image_read > result_niblack) * 255).astype(np.uint8)
-
+        result_otsu = threshold_otsu(result_unet)
+       # result_otsu = threshold_otsu(image_read)
+        result_unetotsu = ((result_unet > result_otsu) * 255).astype(np.uint8)
+       # result_sauvola = threshold_sauvola(image_read)
+       # result_sauvola = ((image_read > result_sauvola) * 255).astype(np.uint8)
+       # window_size = 25
+       # result_niblack = threshold_niblack(image_read, window_size=window_size, k=0.8)
+       # result_niblack = ((image_read > result_niblack) * 255).astype(np.uint8)
+        
+       
         img_true = np.array(ground_truth).ravel()
-        img_pred = np.array(result_niblack).ravel()
-        print(img_true)
-        print(img_pred)
-        iou_niblack = statistics.mean(jaccard_score(img_true, img_pred, average=None))
-        cv2.imwrite(os.path.join('..', 'results', image[:-4] + '_' + str(iou_niblack)[:5] + '_niblack_.png'),
-                    result_niblack)
+        #iou_niblack = statistics.mean(jaccard_score(img_true, img_pred, average=None))
+        #cv2.imwrite(os.path.join('results', image[:-4] + '_' + str(iou_niblack)[:5] + '_niblack_.png'),
+        #           result_niblack)
 
-        img_pred = np.array(result_otsu).ravel()
-        iou_otsu = statistics.mean(jaccard_score(img_true, img_pred, average=None))
-        cv2.imwrite(os.path.join('..', 'results', image[:-4] + '_' + str(iou_otsu)[:5] + '_otsu_.png'), result_otsu)
+        #img_pred = np.array(result_otsu).ravel()
+        #iou_otsu = statistics.mean(jaccard_score(img_true, img_pred, average=None))
+        #cv2.imwrite(os.path.join('results', image[:-4] + '_' + str(iou_otsu)[:5] + '_otsu_.png'), result_otsu)
 
-        img_pred = np.array(result_sauvola).ravel()
-        iou_sauvola = statistics.mean(jaccard_score(img_true, img_pred, average=None))
-        cv2.imwrite(os.path.join('..', 'results', image[:-4] + '_' + str(iou_sauvola)[:5] + '_sauvola_.png'),
-                    result_sauvola)
+        #img_pred = np.array(result_sauvola).ravel()
+        #iou_sauvola = statistics.mean(jaccard_score(img_true, img_pred, average=None))
+        #cv2.imwrite(os.path.join('results', image[:-4] + '_' + str(iou_sauvola)[:5] + '_sauvola_.png'),
+        #            result_sauvola)
 
-        img_pred = np.array(result_unet).ravel()
+        img_pred = np.array(result_unetotsu).ravel()
         iou_unet = statistics.mean(jaccard_score(img_true, img_pred, average=None))
-        cv2.imwrite(os.path.join('..', 'results', image[:-4] + '_' + str(iou_unet)[:5] + '_unet_.png'), result_unet)
+        psnr_unet = cv2.PSNR(img_true, img_pred)
+        mse_unet = mean_squared_error(img_true, img_pred)
+        cv2.imwrite(os.path.join('results', image[:-4] + '_' + str(iou_unet)[:5] + '_unet_.png'), result_unet)
+        cv2.imwrite(os.path.join('results', image[:-4] + '_' + str(iou_unet)[:5] + '_unet_otsu_.png'), result_unetotsu)
 
-        results.append([iou_unet, iou_otsu, iou_sauvola, iou_niblack])
+        results.append([iou_unet,psnr_unet,mse_unet])
 
     for index, image in enumerate(images):
-        print('Image', image, '- U-Net IoU:', results[index][0], 'Otsu IoU:', results[index][1], 'Sauvola IoU:',
-              results[index][2], 'Niblack IoU:', results[index][3])
+        print('Image', image, '- U-Net IoU:', results[index][0], 'PSNR:', results[index][1], 'MSE:', results[index][2])
+
+
+def set_params_train(args):
+    """ sets parameters and trains the model
+    with data defined by user
+    """
+    print(args)
+    if args.gpu is not None and args.gpu == 'yes':
+        USE_GPU = True
+        check_gpu()
+    else:
+        USE_GPU = False
+    checkpoint_file = 'model//' + args.name + '.hdf5' if args.name is not None else \
+        'model//unet_testing_dataset.hdf5'
+    data_paths = []
+    if args.ds is not None:
+        for ds in args.ds:
+            path = os.path.join('..', 'destination', ds)
+            data_paths.append(path)
+    else:
+        data_paths.append(os.path.join('..', 'destination'))
+
+    bs = args.bs if args.bs is not None else 1
+    ep = args.ep if args.ep is not None else 50
+    f = args.f if args.f is not None else .1
+    lr = args.lr if args.lr is not None else 0.00001
+    p = args.p if args.p is not None else 20
+    se = args.se if args.se is not None else 300
+
+    my_unet = myUnet()
+    my_unet.train(checkpoint_file, data_paths, batch_size=bs, epochs=ep, factor=f, min_lr=lr, patience=p, steps_per_epoch=se)
+
+def load_model_predict(model_name='unet_testing_dataset.hdf5'):
+    my_unet = myUnet()
+    model = os.path.join('model', model_name + '.hdf5')
+    test_predict(my_unet, model)
 
 
 if __name__ == '__main__':
-    check_gpu()
-    my_unet = myUnet()
+    args = parser.parse_args()
+    if args.pred == 'yes':
+        if args.name is not None:
+            load_model_predict(args.name)
+        else:
+            print("Give model name please.")
+    else:
+        set_params_train(args)
+    #check_gpu() 
+    #my_unet = myUnet()
+    #test_predict(my_unet, model)
 
-    data_path = os.path.join('..', 'destination')
-    checkpoint_file = '..//model//unet_testing_dataset.hdf5'
-    my_unet.train(data_path, checkpoint_file, epochs=1)
+    #data_path = os.path.join('..','..', 'destination')
+    #checkpoint_file = 'model//unet_testing_dataset.hdf5'
+    #my_unet.train(data_path, checkpoint_file, epochs=1)
 
     #If you want to test the model just uncomment the following code
     #Pre-trained model
-    model = os.path.join('..', 'model', 'unet_testing_dataset.hdf5')
-    test_predict(my_unet, model)
-
+    #model = os.path.join('model', 'unet_testing_dataset.hdf5')
