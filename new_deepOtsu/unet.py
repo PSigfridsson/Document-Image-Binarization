@@ -13,6 +13,7 @@ from sklearn.metrics import jaccard_score
 from tensorflow.keras.preprocessing.image import ImageDataGenerator, array_to_img
 import cv2
 import statistics
+import gt_construction
 
 USE_GPU = True
 IMG_MODEL_SIZE = 128
@@ -33,22 +34,21 @@ def loader(batch_size, train_path, image_folder, mask_folder, mask_color_mode="g
 
     for (img, mask) in train_generator:
         mask = mask[0,:,:,:]
+        mask = ((mask > 0.5)).astype(np.uint8)
         img = img[0,:,:,:]
-        mask_minus_img = mask-img
-        mask_minus_img = mask_minus_img
-        print("mask")
-        print(mask)
-        print("img")
-        print(img)
-        print("mask-img")
-        print(mask-img)
-        cv2.imwrite(os.path.join('results', 'mask.png'), mask*255)
-        cv2.imwrite(os.path.join('results', 'img.png'), img*255)
-        cv2.imwrite(os.path.join('results', 'mask_minus_img.png'), mask_minus_img*255)
 
-        exit()
-        yield (img, mask-img)
-        #yield (img, mask)
+        grayscale_gt = gt_construction.generate_grayscale_gt(img, mask)
+        neg_e = grayscale_gt-img
+
+        #cv2.imwrite(os.path.join('results', 'mask.png'), mask*255)
+        #cv2.imwrite(os.path.join('results', 'img.png'), img*255)
+        #cv2.imwrite(os.path.join('results', 'neg_e.png'), neg_e*255)
+        print(img.shape)
+        print(img.dtype)
+        print(neg_e.shape)
+        print(neg_e.dtype)
+        #yield (img, neg_e)
+        yield (img, mask)
 
 def check_gpu():
     if USE_GPU:
