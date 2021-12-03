@@ -34,6 +34,11 @@ def generate_grayscale_gt(original, binarized):
 	#print("count white: " + str(count_white))
 	#print("count black: " + str(count_black))
 
+	if count_white == 0:
+		count_white = 1
+	if count_black == 0:
+		count_black = 1
+
 	color_background = sum_white/count_white
 	color_text = sum_black/count_black
 	#print("color bg: " + str(color_background))

@@ -18,6 +18,26 @@ import gt_construction
 USE_GPU = True
 IMG_MODEL_SIZE = 128
 
+def image_add(img_a, img_b):
+    result = img_a+img_b #memes
+
+    for y, row in enumerate(img_a):
+        for x, pixel in enumerate(row):
+            if int(img_a[y,x])+int(img_b[y,x]) > 255:
+                result[y,x] = 255
+            else:
+                result[y,x] = img_a[y,x]+img_b[y,x]
+    return result 
+
+
+def remove_negative_pixels(img):
+    for y, row in enumerate(img):
+        for x, pixel in enumerate(row):
+            if pixel < 0:
+                img[y,x] = 0
+    return img
+
+
 
 def loader(batch_size, train_path, image_folder, mask_folder, mask_color_mode="grayscale", target_size=(128, 128), save_to_dir=None):
     image_datagen = ImageDataGenerator(rescale=1. / 255)
@@ -32,6 +52,7 @@ def loader(batch_size, train_path, image_folder, mask_folder, mask_color_mode="g
                                                       batch_size=batch_size, save_to_dir=save_to_dir, seed=1)
     train_generator = zip(image_generator, mask_generator)
 
+    counter = 0
     for (img, mask) in train_generator:
         mask = mask[0,:,:,:]
         mask = ((mask > 0.5)).astype(np.uint8)
@@ -39,16 +60,21 @@ def loader(batch_size, train_path, image_folder, mask_folder, mask_color_mode="g
 
         grayscale_gt = gt_construction.generate_grayscale_gt(img, mask)
         neg_e = grayscale_gt-img
+        neg_e = remove_negative_pixels(neg_e)
+        #e = img-grayscale_gt
+        #e = remove_negative_pixels(e)
 
         #cv2.imwrite(os.path.join('results', 'mask.png'), mask*255)
         #cv2.imwrite(os.path.join('results', 'img.png'), img*255)
-        #cv2.imwrite(os.path.join('results', 'neg_e.png'), neg_e*255)
-        print(img.shape)
-        print(img.dtype)
-        print(neg_e.shape)
-        print(neg_e.dtype)
-        #yield (img, neg_e)
-        yield (img, mask)
+        #cv2.imwrite(os.path.join('results', 'grayscale_gt.png'), grayscale_gt*255)
+        cv2.imwrite(os.path.join('results', str(counter) + 'neg_e.png'), neg_e*255)
+        #cv2.imwrite(os.path.join('results', str(counter) + 'e.png'), e*255)
+        #cv2.imwrite(os.path.join('results', 'e.png'), e*255)
+        counter += 1
+        neg_e = np.expand_dims(neg_e, axis=0)
+        img = np.expand_dims(img, axis=0)
+
+        yield (img, neg_e)
 
 def check_gpu():
     if USE_GPU:
@@ -143,12 +169,12 @@ class myUnet(Callback):
         conv9 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(merge9)
         conv9 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv9)
         conv9 = Conv2D(2, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv9)
-        conv10 = Conv2D(1, 1, activation='sigmoid')(conv9)
+        conv10 = Conv2D(1, 1, activation=None)(conv9)
 
         model = Model(inputs, conv10)
         # model = Model()
 
-        model.compile(optimizer=Adam(lr=1e-4), loss='binary_crossentropy', metrics=['accuracy'])
+        model.compile(optimizer=Adam(lr=1e-4), loss='mean_squared_error', metrics=['accuracy'])
 
         return model
 
@@ -244,25 +270,47 @@ class myUnet(Callback):
         #imgs_train, imgs_mask_train, imgs_test = self.load_data()
         print("loading data done")
 
-        print(type(parts))
-        print(parts.shape)
+        #print(type(parts))
+        #print(parts.shape)
 
         model = self.get_unet()
-        print("got unet")
-        print(parts.shape)
+        #print("got unet")
+        #print(parts.shape)
 
         model.load_weights(model_weights)
         print('predicting test data')
         imgs_mask_test = model.predict(parts, batch_size=1, verbose=1)
 
-        # Binarization (output from neural network is greyscale)
-        #result_sauvola = threshold_sauvola() instead of 0.5 ?
-        #imgs_mask_test = ((imgs_mask_test > 0.9)).astype(np.float32)
-
         neg_e = self.restore_image(imgs_mask_test, dim)
-        #x = cv2.imread(input_image, cv2.IMREAD_GRAYSCALE)
-        #xu = neg_e[:,:,0] + x
-        return neg_e
+        cv2.imwrite(os.path.join('results', 'neg_e.png'), neg_e)
+        x = cv2.imread(input_image, cv2.IMREAD_GRAYSCALE)
+        neg_e = neg_e[:,:,0]
+        xu = image_add(neg_e, x)
+
+
+
+        #awawdawd
+        mask = cv2.imread(os.path.join('images', 'GT', '1-IMG_MAX_9964_orig_22_gt.png'), cv2.IMREAD_GRAYSCALE)
+
+        mask = ((mask/255 > 0.5)).astype(np.uint8)
+        x = x/255
+        x = np.expand_dims(x, axis=2)
+        grayscale_gt = gt_construction.generate_grayscale_gt(x, np.expand_dims(mask, axis=2))
+
+        neg_e_real = grayscale_gt-x # grayscale_gt-img
+        print(neg_e_real)
+        print("WIHOOOO")
+        neg_e_real = remove_negative_pixels(neg_e_real)
+        neg_e_real = (neg_e_real * 255).astype(np.uint8)
+
+        print("neg_e")
+        print(neg_e)
+        print("neg_e_real")
+        print(neg_e_real[:,:,0])
+
+        cv2.imwrite(os.path.join('results', 'neg_e.png'), neg_e)
+        cv2.imwrite(os.path.join('results', 'neg_e_real.png'), neg_e_real)
+        return xu
 
 
 
@@ -303,7 +351,7 @@ class myUnet(Callback):
 
 
 def test_predict(u_net, model):
-    images_path = os.path.join('..', 'images', 'Originals')
+    images_path = os.path.join('images', 'Originals')
     print(images_path)
     images = os.listdir(images_path)
     print(images)
@@ -318,8 +366,9 @@ def test_predict(u_net, model):
         result_unet = u_net.binarise_image(model_weights=model, input_image=current_image)
 
         ressult_otsu = threshold_otsu(result_unet)
+        cv2.imwrite(os.path.join('results', image[:-4] + '_' + '_unet_.png'), result_unet)
         # Binarise image with Otsu
-        #result_unet = ((result_unet > ressult_otsu) * 255).astype(np.uint8)
+        result_unet = ((result_unet > ressult_otsu) * 255).astype(np.uint8)
         ressult_otsu = threshold_otsu(image_read)
         result_otsu = ((image_read > ressult_otsu) * 255).astype(np.uint8)
         result_sauvola = threshold_sauvola(image_read)
@@ -357,10 +406,12 @@ def test_predict(u_net, model):
                     result_sauvola)
 
         img_pred = np.array(result_unet).ravel()
+        print("img_true")
         print(img_true)
+        print("img_pred")
         print(img_pred)
         iou_unet = statistics.mean(jaccard_score(img_true, img_pred, average=None))
-        cv2.imwrite(os.path.join('results', image[:-4] + '_' + str(iou_unet)[:5] + '_unet_.png'), result_unet)
+        cv2.imwrite(os.path.join('results', image[:-4] + '_' + str(iou_unet)[:5] + '_unet_binarize.png'), result_unet)
 
         results.append([iou_unet, iou_otsu, iou_sauvola, iou_niblack])
 
