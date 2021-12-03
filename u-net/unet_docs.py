@@ -200,6 +200,7 @@ class myUnet(Callback):
             with ZipFile(path+'.zip', 'r') as zip:
                 name = path.split('\\')[-1]
                 if name == path:
+                    # for linux paths
                     name = path.split('/')[-1]
                 zip.extractall(path.replace(name, ''))
             
