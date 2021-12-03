@@ -62,7 +62,6 @@ parser.add_argument('-pred',
                     help='yes/no - predict or train, default train',
                     action="store",
                     type=str)
-USE_GPU = False
 IMG_MODEL_SIZE = 128
 
 
@@ -84,8 +83,8 @@ def loader(batch_size, train_path, image_folder, mask_folder, mask_color_mode="g
         yield (img, mask)
 
 
-def check_gpu():
-    if USE_GPU:
+def check_gpu(use_gpu):
+    if use_gpu:
         import tensorflow as tf
         physical_devices = tf.config.list_physical_devices('GPU')
         print(physical_devices)
@@ -390,10 +389,9 @@ def set_params_train(args):
     """
     print(args)
     if args.gpu is not None and args.gpu == 'yes':
-        USE_GPU = True
-        check_gpu()
+        check_gpu(True)
     else:
-        USE_GPU = False
+        check_gpu(False)
     checkpoint_file = 'model//' + args.name + '.hdf5' if args.name is not None else \
         'model//unet_testing_dataset.hdf5'
     data_paths = []
