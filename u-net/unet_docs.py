@@ -14,6 +14,8 @@ from keras.preprocessing.image import ImageDataGenerator, array_to_img
 import cv2
 import statistics
 import argparse
+from zipfile import ZipFile
+import shutil
 
 parser = argparse.ArgumentParser(
     description='Runs the script %(prog)s with the specified parameters',
@@ -60,7 +62,6 @@ parser.add_argument('-pred',
                     help='yes/no - predict or train, default train',
                     action="store",
                     type=str)
-USE_GPU = False
 IMG_MODEL_SIZE = 128
 
 
@@ -82,8 +83,8 @@ def loader(batch_size, train_path, image_folder, mask_folder, mask_color_mode="g
         yield (img, mask)
 
 
-def check_gpu():
-    if USE_GPU:
+def check_gpu(use_gpu):
+    if use_gpu:
         import tensorflow as tf
         physical_devices = tf.config.list_physical_devices('GPU')
         print(physical_devices)
@@ -194,8 +195,22 @@ class myUnet(Callback):
         print('Fitting model...')
 
         for path in data_paths:
+            # unzip
+            with ZipFile(path+'.zip', 'r') as zip:
+                name = path.split('\\')[-1]
+                if name == path:
+                    # for linux paths
+                    name = path.split('/')[-1]
+                zip.extractall(path.replace(name, ''))
+            
             ld = loader(batch_size, path, 'Originals', 'GT')
             model.fit_generator(ld, epochs=epochs, verbose=1, shuffle=True, steps_per_epoch=steps_per_epoch, callbacks=[reduce_lr, early_stopping,model_checkpoint, self])
+            
+            # remove unzipped to save storage
+            try:
+                shutil.rmtree(path)
+            except OSError as e:
+                print("Error: %s - %s." % (e.filename, e.strerror))
 
     def prepare_image_predict(self, input_image):
         img = cv2.imread(input_image, cv2.IMREAD_GRAYSCALE)
@@ -374,19 +389,18 @@ def set_params_train(args):
     """
     print(args)
     if args.gpu is not None and args.gpu == 'yes':
-        USE_GPU = True
-        check_gpu()
+        check_gpu(True)
     else:
-        USE_GPU = False
+        check_gpu(False)
     checkpoint_file = 'model//' + args.name + '.hdf5' if args.name is not None else \
         'model//unet_testing_dataset.hdf5'
     data_paths = []
     if args.ds is not None:
         for ds in args.ds:
-            path = os.path.join('..','..', 'destination', ds)
+            path = os.path.join('..', 'destination', ds)
             data_paths.append(path)
     else:
-        data_paths.append(os.path.join('..','..', 'destination'))
+        data_paths.append(os.path.join('..', 'destination'))
 
     bs = args.bs if args.bs is not None else 1
     ep = args.ep if args.ep is not None else 50
