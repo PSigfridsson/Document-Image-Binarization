@@ -52,7 +52,7 @@ def main():
 	my_unet = unet.myUnet()
 
 	train_net(my_unet)
-	#predict_net(my_unet)
+	predict_net(my_unet)
 
 	# img = cv2.imread(os.path.join('hampus_dataset', 'Originals', '1-IMG_MAX_9964_orig_10.png'), cv2.IMREAD_GRAYSCALE)
 	# img = img / 255

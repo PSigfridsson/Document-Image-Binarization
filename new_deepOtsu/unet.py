@@ -1,5 +1,5 @@
 from tensorflow.keras.models import *
-from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, UpSampling2D, Dropout
+from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, UpSampling2D, Dropout, BatchNormalization
 from tensorflow.keras.layers import concatenate
 from tensorflow.keras.optimizers import *
 from tensorflow.keras.callbacks import ModelCheckpoint, Callback,  EarlyStopping, ReduceLROnPlateau
@@ -52,6 +52,7 @@ def loader(batch_size, train_path, image_folder, mask_folder, mask_color_mode="g
                                                       batch_size=batch_size, save_to_dir=save_to_dir, seed=1)
     train_generator = zip(image_generator, mask_generator)
 
+    # counter = 0
     for (img, mask) in train_generator:
         mask = mask[0,:,:,:]
         mask = ((mask > 0.5)).astype(np.uint8)
@@ -67,12 +68,20 @@ def loader(batch_size, train_path, image_folder, mask_folder, mask_color_mode="g
         #cv2.imwrite(os.path.join('results', 'mask.png'), mask*255)
         #cv2.imwrite(os.path.join('results', 'img.png'), img*255)
         #cv2.imwrite(os.path.join('results', 'grayscale_gt.png'), grayscale_gt*255)
+        # norm_image = cv2.normalize(neg_e, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
         # cv2.imwrite(os.path.join('results', str(counter) + 'neg_e.png'), neg_e*255)
+        # cv2.imwrite(os.path.join('results', str(counter) + 'neg_e_minmax.png'), norm_image*255)
         #cv2.imwrite(os.path.join('results', str(counter) + 'e.png'), e*255)
         #cv2.imwrite(os.path.join('results', 'e.png'), e*255)
 
         neg_e = np.expand_dims(neg_e, axis=0)
         img = np.expand_dims(img, axis=0)
+
+        # grayscale_gt = np.expand_dims(grayscale_gt, axis=0)
+        # img = np.expand_dims(img, axis=0)
+
+        # mask = np.expand_dims(mask, axis=0)
+        # counter += 1
 
         yield (img, neg_e)
 
@@ -106,33 +115,43 @@ class myUnet(Callback):
         inputs = Input((self.img_rows, self.img_cols, 1))
 
         conv1 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(inputs)
+        conv1 = BatchNormalization()(conv1)
         print("conv1 shape:", conv1.shape)
         conv1 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv1)
+        conv1 = BatchNormalization()(conv1)
         print("conv1 shape:", conv1.shape)
         pool1 = MaxPooling2D(pool_size=(2, 2))(conv1)
         print("pool1 shape:", pool1.shape)
 
         conv2 = Conv2D(128, 3, activation='relu', padding='same', kernel_initializer='he_normal')(pool1)
+        conv2 = BatchNormalization()(conv2)
         print("conv2 shape:", conv2.shape)
         conv2 = Conv2D(128, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv2)
+        conv2 = BatchNormalization()(conv2)
         print("conv2 shape:", conv2.shape)
         pool2 = MaxPooling2D(pool_size=(2, 2))(conv2)
         print("pool2 shape:", pool2.shape)
 
         conv3 = Conv2D(IMG_MODEL_SIZE, 3, activation='relu', padding='same', kernel_initializer='he_normal')(pool2)
+        conv3 = BatchNormalization()(conv3)
         print("conv3 shape:", conv3.shape)
         conv3 = Conv2D(IMG_MODEL_SIZE, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv3)
+        conv3 = BatchNormalization()(conv3)
         print("conv3 shape:", conv3.shape)
         pool3 = MaxPooling2D(pool_size=(2, 2))(conv3)
         print("pool3 shape:", pool3.shape)
 
         conv4 = Conv2D(512, 3, activation='relu', padding='same', kernel_initializer='he_normal')(pool3)
+        conv4 = BatchNormalization()(conv4)
         conv4 = Conv2D(512, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv4)
+        conv4 = BatchNormalization()(conv4)
         drop4 = Dropout(0.5)(conv4)
         pool4 = MaxPooling2D(pool_size=(2, 2))(drop4)
 
         conv5 = Conv2D(1024, 3, activation='relu', padding='same', kernel_initializer='he_normal')(pool4)
+        conv5 = BatchNormalization()(conv5)
         conv5 = Conv2D(1024, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv5)
+        conv5 = BatchNormalization()(conv5)
         drop5 = Dropout(0.5)(conv5)
 
         up6 = Conv2D(512, 2, activation='relu', padding='same', kernel_initializer='he_normal')(
@@ -143,7 +162,9 @@ class myUnet(Callback):
         merge6 = concatenate([drop4, up6], axis=3)
 
         conv6 = Conv2D(512, 3, activation='relu', padding='same', kernel_initializer='he_normal')(merge6)
+        conv6 = BatchNormalization()(conv6)
         conv6 = Conv2D(512, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv6)
+        conv6 = BatchNormalization()(conv6)
 
         up7 = Conv2D(IMG_MODEL_SIZE, 2, activation='relu', padding='same', kernel_initializer='he_normal')(
             UpSampling2D(size=(2, 2))(conv6))
@@ -151,7 +172,9 @@ class myUnet(Callback):
         merge7 = concatenate([conv3, up7], axis=3)
 
         conv7 = Conv2D(IMG_MODEL_SIZE, 3, activation='relu', padding='same', kernel_initializer='he_normal')(merge7)
+        conv7 = BatchNormalization()(conv7)
         conv7 = Conv2D(IMG_MODEL_SIZE, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv7)
+        conv7 = BatchNormalization()(conv7)
 
         up8 = Conv2D(128, 2, activation='relu', padding='same', kernel_initializer='he_normal')(
             UpSampling2D(size=(2, 2))(conv7))
@@ -159,7 +182,9 @@ class myUnet(Callback):
         merge8 = concatenate([conv2, up8], axis=3)
 
         conv8 = Conv2D(128, 3, activation='relu', padding='same', kernel_initializer='he_normal')(merge8)
+        conv8 = BatchNormalization()(conv8)
         conv8 = Conv2D(128, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv8)
+        conv8 = BatchNormalization()(conv8)
 
         up9 = Conv2D(64, 2, activation='relu', padding='same', kernel_initializer='he_normal')(
             UpSampling2D(size=(2, 2))(conv8))
@@ -167,14 +192,17 @@ class myUnet(Callback):
         merge9 = concatenate([conv1, up9], axis=3)
 
         conv9 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(merge9)
+        conv9 = BatchNormalization()(conv9)
         conv9 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv9)
+        conv9 = BatchNormalization()(conv9)
         conv9 = Conv2D(2, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv9)
+        conv9 = BatchNormalization()(conv9)
         conv10 = Conv2D(1, 1, activation='sigmoid')(conv9)
 
         model = Model(inputs, conv10)
         # model = Model()
 
-        model.compile(optimizer=Adam(lr=1e-2), loss='mean_absolute_error')
+        model.compile(optimizer=Adam(lr=1e-4), loss='mean_absolute_error', metrics=['accuracy']) # mean_absolute_error binary_crossentropy
 
         return model
 
@@ -283,26 +311,25 @@ class myUnet(Callback):
 
         neg_e = self.restore_image(imgs_mask_test, dim)
 
-        cv2.imwrite(os.path.join('results', name + 'neg_e.png'), neg_e)
         x = cv2.imread(input_image, cv2.IMREAD_GRAYSCALE)
 
         neg_e = neg_e[:,:,0]
         xu = image_add(neg_e, x)
 
-        #awawdawd
-        mask = cv2.imread(os.path.join('images', 'GT', name+'.png'), cv2.IMREAD_GRAYSCALE)
+        # #awawdawd
+        # mask = cv2.imread(os.path.join('images', 'GT', name+'.png'), cv2.IMREAD_GRAYSCALE)
 
-        mask = ((mask/255 > 0.5)).astype(np.uint8)
-        x = x/255
-        x = np.expand_dims(x, axis=2)
-        grayscale_gt = gt_construction.generate_grayscale_gt(x, np.expand_dims(mask, axis=2))
+        # mask = ((mask/255 > 0.5)).astype(np.uint8)
+        # x = x/255
+        # x = np.expand_dims(x, axis=2)
+        # grayscale_gt = gt_construction.generate_grayscale_gt(x, np.expand_dims(mask, axis=2))
 
-        neg_e_real = grayscale_gt-x # grayscale_gt-img
-        neg_e_real = remove_negative_pixels(neg_e_real)
-        neg_e_real = (neg_e_real * 255).astype(np.uint8)
+        # neg_e_real = grayscale_gt-x # grayscale_gt-img
+        # neg_e_real = remove_negative_pixels(neg_e_real)
+        # neg_e_real = (neg_e_real * 255).astype(np.uint8)
 
-        cv2.imwrite(os.path.join('results', name + '_XU_REAL.png'), image_add(neg_e_real, x*255))
-        cv2.imwrite(os.path.join('results', name + '_NEG_E_REAL.png'), neg_e_real)
+        # cv2.imwrite(os.path.join('results', name + '_XU_REAL.png'), image_add(neg_e_real, x*255))
+        cv2.imwrite(os.path.join('results', name + '_NEG_E_PREDICTED.png'), neg_e)
 
         return xu
 
