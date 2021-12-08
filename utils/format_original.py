@@ -12,7 +12,7 @@ def format():
         if file_ending == 'png':
             continue
     
-        if file_ending in ('png', 'jpg', 'tif', 'tiff', 'bmp'):
+        if file_ending in ('png', 'jpg', 'tif', 'tiff', 'bmp', 'jpeg'):
             old_path = os.path.join(dir_path, file)
             image = Image.open(old_path)
             new_path = os.path.join(dir_path, file_name + '.png')

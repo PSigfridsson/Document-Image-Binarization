@@ -36,7 +36,7 @@ def cut_image(img, step):
     while curr_x + IMG_MODEL_SIZE < width:
         curr_y = 0
         while curr_y + IMG_MODEL_SIZE < height:
-            cuts.append(img[curr_y:curr_y + IMG_MODEL_SIZE, curr_x:curr_x + IMG_MODEL_SIZE])
+            cuts.append(img[curr_y:curr_y + IMG_MODEL_SIZE , curr_x:curr_x + IMG_MODEL_SIZE])
             
             curr_y += step
         curr_x += step
@@ -63,11 +63,11 @@ def create_augmentation(root_files_path, destination_path):
     # for name in functions.keys():
     #     res = functions[name](image_src)
 
-    cut_step = 256 # 50 -> 241.731 100 -> 64.169
+    cut_step = IMG_MODEL_SIZE # 50 -> 241.731 100 -> 64.169
     datasets = os.listdir(root_files_path)
     print(datasets)
     for dataset in datasets:
-        if dataset in ['nop', 'backup', 'augmentations', 'dataset', 'ICDAR']:
+        if dataset in ['Bickley','nabuco-dataset-1','ektaBinExp','Cuper','irish', 'ICDAR']:
             continue
 
         # if dataset not in ['dibco']:
@@ -123,13 +123,17 @@ def create_augmentation(root_files_path, destination_path):
                     for i,cut in enumerate(cuts_originals):
                           name = file[:-4] + name_augm + '_' + str(i) + '.png'
                           print(name)
-
+                          if cut.shape != (128,128,3):
+                              print("not the right size lul")
+                              exit()
                           cv2.imwrite(os.path.join(destination_path, 'Originals', name), cut)
 
                     for i,cut in enumerate(cuts_gt):
-                          name = file[:-4] + name_augm + '_' + str(i) + '_' + "gt" + '.png'
+                          name = file[:-4] + name_augm + '_' + str(i) + '.png'
                           print(name)
-
+                          if cut.shape != (128,128,3):
+                              print("not the right size lul")
+                              exit()
                           cv2.imwrite(os.path.join(destination_path, 'GT', name), cut)
                           
                    

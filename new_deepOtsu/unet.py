@@ -207,7 +207,7 @@ class myUnet(Callback):
         return model
 
 
-    def train(self, data_path, checkpoint_file, epochs=50):
+    def train(self, data_path, checkpoint_file, epochs=5):
         model = self.get_unet()
         print("got unet")
 
@@ -218,50 +218,51 @@ class myUnet(Callback):
 
         ld = loader(1, data_path, 'Originals', 'GT')
 
-        history = model.fit_generator(ld, epochs=epochs, verbose=1, shuffle=True, steps_per_epoch=218, callbacks=[reduce_lr, early_stopping,model_checkpoint, self])
+        history = model.fit_generator(ld, epochs=epochs, verbose=1, shuffle=True, steps_per_epoch=10000, callbacks=[reduce_lr, early_stopping,model_checkpoint, self])
         pd.DataFrame(history.history).plot(figsize=(8, 5))
 
     def prepare_image_predict(self, input_image):
-        img = cv2.imread(input_image, cv2.IMREAD_GRAYSCALE)
-        print(img.shape)
-        width = img.shape[1]
-        height = img.shape[0]
-        delta_x = width // IMG_MODEL_SIZE
-        delta_y = height // IMG_MODEL_SIZE
-        remx = width % IMG_MODEL_SIZE
-        remy = height % IMG_MODEL_SIZE
-        print('remy', remy)
-        parts = []
-        border = np.zeros([IMG_MODEL_SIZE, IMG_MODEL_SIZE], dtype=np.uint8)
-        border.fill(255)  # or img[:] = 255
+       img = cv2.imread(input_image, cv2.IMREAD_GRAYSCALE)
+       padding = 16
+       IMG_MODEL_SIZE = 96
+       print(img.shape)
+       width = img.shape[1]
+       height = img.shape[0]
+       delta_x = width // IMG_MODEL_SIZE
+       delta_y = height // IMG_MODEL_SIZE
+       remx = width % IMG_MODEL_SIZE
+       remy = height % IMG_MODEL_SIZE
+       print('remy', remy)
+       parts = []
+       
+       border_width = width + padding + IMG_MODEL_SIZE - remx + padding
+       border_height = height + padding + IMG_MODEL_SIZE - remy + padding
+       
+       border = np.zeros([border_height, border_width], dtype=np.uint8)
+       border.fill(255)  # or img[:] = 255
+       border[padding:padding+height,padding:padding+width] = img
+       cv2.imwrite(os.path.join('..', 'testimages', 'border.png'), border)
+       if remx > 0:
+           delta_x = delta_x + 1
+       if remy > 0:
+           delta_y = delta_y + 1
+       for x in range(delta_x):
+           xinit = x * IMG_MODEL_SIZE
+           for y in range(delta_y):
+               yinit = y * IMG_MODEL_SIZE
+               part = border[yinit:yinit + 128,xinit:xinit +128]
+               parts.append(part.astype('float32'))
+               
+       #for i,part in enumerate(parts):
+           #cv2.imwrite(os.path.join('..', 'testimages', str(i) +'.png'), part)
+           
+       return np.asarray(parts), (img.shape[0], img.shape[1])
 
-        for x in range(delta_x):
-            xinit = x * IMG_MODEL_SIZE
-            for y in range(delta_y):
-                yinit = y * IMG_MODEL_SIZE
-                part = img[yinit:yinit + IMG_MODEL_SIZE, xinit:xinit+IMG_MODEL_SIZE]
-                parts.append(part.astype('float32') / 255)
-            if remy > 0:
-                border.fill(255)
-                border[:remy, :] = img[height-remy:height, xinit:xinit+IMG_MODEL_SIZE]
-                parts.append(border.astype('float32') / 255)
-
-        if remx > 0:
-            xinit = width - remx
-            for y in range(delta_y):
-                yinit = y * IMG_MODEL_SIZE
-                border.fill(255)
-                border[:, :remx] = img[yinit:yinit + IMG_MODEL_SIZE, xinit:width]
-                parts.append(border.astype('float32') / 255)
-            if remy > 0:
-                border.fill(255)
-                border[:remy, :remx] = img[height-remy:height, xinit:width]
-                parts.append(border.astype('float32') / 255)
-
-        return np.asarray(parts), (img.shape[0], img.shape[1])
 
 
     def restore_image(self, parts, dim):
+        padding = 16
+        IMG_MODEL_SIZE = 96
         width = dim[1]
         height = dim[0]
         result = np.zeros([height, width, 1], dtype=np.uint8)
@@ -271,24 +272,24 @@ class myUnet(Callback):
         remx = width % IMG_MODEL_SIZE
         remy = height % IMG_MODEL_SIZE
         index = 0
+        border_width = width + padding + IMG_MODEL_SIZE - remx + padding
+        border_height = height + padding + IMG_MODEL_SIZE - remy + padding
+       
+        border = np.zeros([border_height, border_width, 1], dtype=np.uint8)
+        border.fill(0)  # or img[:] = 255
+        if remx > 0:
+           delta_x = delta_x + 1
+        if remy > 0:
+           delta_y = delta_y + 1
         for x in range(delta_x):
             xinit = x * IMG_MODEL_SIZE
             for y in range(delta_y):
                 yinit = y * IMG_MODEL_SIZE
-                result[yinit:yinit+IMG_MODEL_SIZE, xinit:xinit+IMG_MODEL_SIZE] = parts[index] * 255
+                #cv2.imwrite(os.path.join('..', 'testimages', str(index) +'_read.png'), parts[index]*255)
+                border[yinit:yinit + IMG_MODEL_SIZE,xinit:xinit + IMG_MODEL_SIZE] = parts[index][padding:IMG_MODEL_SIZE + padding,padding:IMG_MODEL_SIZE + padding] * 255
                 index += 1
-            if remy > 0:
-                result[height-remy:, xinit:xinit+IMG_MODEL_SIZE] = parts[index][:remy, :] * 255
-                index += 1
-        if remx > 0:
-            xinit = width - remx
-            for y in range(delta_y):
-                yinit = y * IMG_MODEL_SIZE
-                result[yinit:yinit+IMG_MODEL_SIZE, xinit:] = parts[index][:, :remx] * 255
-                index += 1
-            if remy > 0:
-                result[height-remy:, xinit:xinit+IMG_MODEL_SIZE] = parts[index][:remy, :remx] * 255
-
+            
+        result = border[:height,:width]
         return result
 
 

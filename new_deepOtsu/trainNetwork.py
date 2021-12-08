@@ -78,9 +78,9 @@ def main():
 	# cv2.imwrite(os.path.join('results', 'neg_e_memes.png'), neg_e*255)
 
 def train_net(my_unet):
-	data_path = os.path.join('hampus_dataset_REAL')
+	data_path = os.path.join('../../destination')
 	checkpoint_file = os.path.join('unet_testing_dataset.hdf5')
-	my_unet.train(data_path, checkpoint_file, epochs=1)
+	my_unet.train(data_path, checkpoint_file, epochs=5)
 
 def predict_net(my_unet):
 	model = os.path.join('unet_testing_dataset.hdf5')
