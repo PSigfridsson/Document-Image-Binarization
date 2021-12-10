@@ -401,7 +401,7 @@ def set_params_train(args):
             if '*' in ds:
                 name = ds.replace('*', '')
                 whole_dir = os.listdir(os.path.join('..', 'destination')) 
-                matching = [dir_name for dir_name in whole_dir if name in dir_name]
+                matching = [dir_name.replace('.zip', '') for dir_name in whole_dir if name in dir_name]
                 for match in matching:
                     path = os.path.join('..', 'destination', match)
                     data_paths.append(path)
@@ -410,7 +410,7 @@ def set_params_train(args):
                 data_paths.append(path)
     else:
         data_paths.append(os.path.join('..', 'destination'))
-        
+
     bs = args.bs if args.bs is not None else 1
     ep = args.ep if args.ep is not None else 50
     f = args.f if args.f is not None else .1
