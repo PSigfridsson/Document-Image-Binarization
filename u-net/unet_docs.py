@@ -55,13 +55,13 @@ parser.add_argument('-name',
                     action="store",
                     type=str)
 parser.add_argument('-gpu',
-                    help='yes/no - use gpu or not',
-                    action="store",
-                    type=str)
+                    help='omit if not using gpu',
+                    action="store_true",
+                    )
 parser.add_argument('-pred',
-                    help='yes/no - predict or train, default train',
-                    action="store",
-                    type=str)
+                    help='omit if training',
+                    action="store_true",
+                    )
 IMG_MODEL_SIZE = 128
 
 
@@ -389,7 +389,7 @@ def set_params_train(args):
     with data defined by user
     """
     print(args)
-    if args.gpu is not None and args.gpu == 'yes':
+    if args.gpu:
         check_gpu(True)
     else:
         check_gpu(False)
@@ -429,7 +429,7 @@ def load_model_predict(model_name='unet_testing_dataset.hdf5'):
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    if args.pred == 'yes':
+    if args.pred:
         if args.name is not None:
             load_model_predict(args.name)
         else:
