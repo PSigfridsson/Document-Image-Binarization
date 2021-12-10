@@ -52,7 +52,6 @@ def loader(batch_size, train_path, image_folder, mask_folder, mask_color_mode="g
                                                       batch_size=batch_size, save_to_dir=save_to_dir, seed=1)
     train_generator = zip(image_generator, mask_generator)
 
-    # counter = 0
     for (img, mask) in train_generator:
         mask = mask[0,:,:,:]
         mask = ((mask > 0.5)).astype(np.uint8)
@@ -62,26 +61,9 @@ def loader(batch_size, train_path, image_folder, mask_folder, mask_color_mode="g
 
         neg_e = grayscale_gt-img
         neg_e = remove_negative_pixels(neg_e)
-        #e = img-grayscale_gt
-        #e = remove_negative_pixels(e)
-
-        #cv2.imwrite(os.path.join('results', 'mask.png'), mask*255)
-        #cv2.imwrite(os.path.join('results', 'img.png'), img*255)
-        #cv2.imwrite(os.path.join('results', 'grayscale_gt.png'), grayscale_gt*255)
-        # norm_image = cv2.normalize(neg_e, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
-        # cv2.imwrite(os.path.join('results', str(counter) + 'neg_e.png'), neg_e*255)
-        # cv2.imwrite(os.path.join('results', str(counter) + 'neg_e_minmax.png'), norm_image*255)
-        #cv2.imwrite(os.path.join('results', str(counter) + 'e.png'), e*255)
-        #cv2.imwrite(os.path.join('results', 'e.png'), e*255)
 
         neg_e = np.expand_dims(neg_e, axis=0)
         img = np.expand_dims(img, axis=0)
-
-        # grayscale_gt = np.expand_dims(grayscale_gt, axis=0)
-        # img = np.expand_dims(img, axis=0)
-
-        # mask = np.expand_dims(mask, axis=0)
-        # counter += 1
 
         yield (img, neg_e)
 
@@ -207,7 +189,7 @@ class myUnet(Callback):
         return model
 
 
-    def train(self, data_path, checkpoint_file, epochs=5):
+    def train(self, data_path, checkpoint_file, epochs=5, iteration=0):
         model = self.get_unet()
         print("got unet")
 
@@ -216,10 +198,33 @@ class myUnet(Callback):
         reduce_lr = ReduceLROnPlateau(factor=0.1, patience=5, min_lr=0.00001, verbose=1, monitor='loss')
         print('Fitting model...')
 
-        ld = loader(1, data_path, 'Originals', 'GT')
+        ld = loader(1, data_path, f'Originals_{iteration}', 'GT')
 
-        history = model.fit_generator(ld, epochs=epochs, verbose=1, shuffle=True, steps_per_epoch=10000, callbacks=[reduce_lr, early_stopping,model_checkpoint, self])
+        history = model.fit_generator(ld, epochs=epochs, verbose=1, shuffle=True, steps_per_epoch=2, callbacks=[reduce_lr, early_stopping,model_checkpoint, self])
         pd.DataFrame(history.history).plot(figsize=(8, 5))
+
+        self.create_next_iteration_images(data_path, iteration)
+            
+    def create_next_iteration_images(self, data_path, iteration):
+        # Create input images to next iteration
+        model_weights = os.path.join('stacked_refinement_models', f'unet_SR_{iteration}.hdf5')
+        new_originals_folder = os.path.join(data_path, f'Originals_{iteration+1}')
+
+        try:
+            os.mkdir(new_originals_folder)
+        except Exception as e:
+            print(f"Folder '{new_originals_folder}'already exists")
+
+        images_path = os.path.join(data_path, f'Originals_{iteration}')
+        images = os.listdir(images_path)
+
+        for image in images:
+            current_image = os.path.join(images_path, image)
+            image_read = cv2.imread(current_image, cv2.IMREAD_GRAYSCALE)
+            result_unet = self.predict_and_restore(model_weights=model_weights, input_image=current_image, name=image[:-4])
+            new_image_path = os.path.join(new_originals_folder, image)
+            cv2.imwrite(new_image_path, result_unet)
+
 
     def prepare_image_predict(self, input_image):
        img = cv2.imread(input_image, cv2.IMREAD_GRAYSCALE)
@@ -293,7 +298,7 @@ class myUnet(Callback):
         return result
 
 
-    def binarise_image(self, model_weights, input_image, name):
+    def predict_and_restore(self, model_weights, input_image, name):
         print("loading image")
         parts, dim = self.prepare_image_predict(input_image=input_image)
         #imgs_train, imgs_mask_train, imgs_test = self.load_data()
@@ -316,21 +321,6 @@ class myUnet(Callback):
 
         neg_e = neg_e[:,:,0]
         xu = image_add(neg_e, x)
-
-        # #awawdawd
-        # mask = cv2.imread(os.path.join('images', 'GT', name+'.png'), cv2.IMREAD_GRAYSCALE)
-
-        # mask = ((mask/255 > 0.5)).astype(np.uint8)
-        # x = x/255
-        # x = np.expand_dims(x, axis=2)
-        # grayscale_gt = gt_construction.generate_grayscale_gt(x, np.expand_dims(mask, axis=2))
-
-        # neg_e_real = grayscale_gt-x # grayscale_gt-img
-        # neg_e_real = remove_negative_pixels(neg_e_real)
-        # neg_e_real = (neg_e_real * 255).astype(np.uint8)
-
-        # cv2.imwrite(os.path.join('results', name + '_XU_REAL.png'), image_add(neg_e_real, x*255))
-        cv2.imwrite(os.path.join('results', name + '_NEG_E_PREDICTED.png'), neg_e)
 
         return xu
 
@@ -385,7 +375,7 @@ def test_predict(u_net, model):
         current_image = os.path.join('images', 'Originals', image)
         image_read = cv2.imread(current_image, cv2.IMREAD_GRAYSCALE)
 
-        result_unet = u_net.binarise_image(model_weights=model, input_image=current_image, name=image[:-4])
+        result_unet = u_net.predict_and_restore(model_weights=model, input_image=current_image, name=image[:-4])
 
         ressult_otsu = threshold_otsu(result_unet)
         cv2.imwrite(os.path.join('results', image[:-4] + '_' + '_unet_.png'), result_unet)
