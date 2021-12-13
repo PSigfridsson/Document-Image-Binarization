@@ -9,8 +9,8 @@ import unet
 import gt_construction
 
 def main():
-	print("GPUS Available: " + str(tf.config.list_physical_devices('GPU')))
-
+	#print("GPUS Available: " + str(tf.config.list_physical_devices('GPU')))
+	unet.check_gpu()
 	model_stacks = 5
 
 	for x in range(model_stacks):
