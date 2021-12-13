@@ -233,7 +233,7 @@ class myUnet(Callback):
 
         for image in images:
             current_image = os.path.join(images_path, image)
-            image_read = cv2.imread(current_image, cv2.IMREAD_GRAYSCALE)
+ 
             result_unet = self.predict_and_restore(model_weights=model_weights, input_image=current_image, name=image[:-4])
             new_image_path = os.path.join(new_originals_folder, image)
             cv2.imwrite(new_image_path, result_unet)
