@@ -14,6 +14,7 @@ from tensorflow.keras.preprocessing.image import ImageDataGenerator, array_to_im
 import cv2
 import statistics
 import gt_construction
+import shutil
 
 USE_GPU = True
 IMG_MODEL_SIZE = 128
@@ -189,7 +190,7 @@ class myUnet(Callback):
         return model
 
 
-    def train(self, data_path, checkpoint_file, epochs=5, iteration=0):
+    def train(self, data_path, checkpoint_file, epochs=5, iteration=0, model_stacks=0):
         model = self.get_unet()
         print("got unet")
 
@@ -198,14 +199,23 @@ class myUnet(Callback):
         reduce_lr = ReduceLROnPlateau(factor=0.1, patience=5, min_lr=0.00001, verbose=1, monitor='loss')
         print('Fitting model...')
 
-        ld = loader(1, data_path, f'Originals_{iteration}', 'GT')
+        if iteration == 0:
+            org_folder = 'Originals';
+        else:
+            org_folder = f'Originals_{iteration}';
+
+        ld = loader(1, data_path, org_folder, 'GT')
 
         history = model.fit_generator(ld, epochs=epochs, verbose=1, shuffle=True, steps_per_epoch=2, callbacks=[reduce_lr, early_stopping,model_checkpoint, self])
         pd.DataFrame(history.history).plot(figsize=(8, 5))
 
-        self.create_next_iteration_images(data_path, iteration)
+        if iteration + 1 < model_stacks:
+            self.create_next_iteration_images(data_path, org_folder, iteration)
+        else:
+            if org_folder != 'Originals':
+                shutil.rmtree(os.path.join(data_path, org_folder))
             
-    def create_next_iteration_images(self, data_path, iteration):
+    def create_next_iteration_images(self, data_path, org_folder, iteration):
         # Create input images to next iteration
         model_weights = os.path.join('stacked_refinement_models', f'unet_SR_{iteration}.hdf5')
         new_originals_folder = os.path.join(data_path, f'Originals_{iteration+1}')
@@ -213,9 +223,12 @@ class myUnet(Callback):
         try:
             os.mkdir(new_originals_folder)
         except Exception as e:
-            print(f"Folder '{new_originals_folder}'already exists")
+            print(f"Folder '{new_originals_folder}'already exists - Removing it's content")
 
-        images_path = os.path.join(data_path, f'Originals_{iteration}')
+            for file in os.listdir(new_originals_folder):
+                os.remove(os.path.join(new_originals_folder, file))
+
+        images_path = os.path.join(data_path, org_folder)
         images = os.listdir(images_path)
 
         for image in images:
@@ -225,9 +238,16 @@ class myUnet(Callback):
             new_image_path = os.path.join(new_originals_folder, image)
             cv2.imwrite(new_image_path, result_unet)
 
+        if org_folder != 'Originals':
+            shutil.rmtree(images_path)
 
-    def prepare_image_predict(self, input_image):
-       img = cv2.imread(input_image, cv2.IMREAD_GRAYSCALE)
+
+    def prepare_image_predict(self, input_image, input_image_is_path=True):
+       if input_image_is_path:
+           img = cv2.imread(input_image, cv2.IMREAD_GRAYSCALE)
+       else:
+           img = input_image
+
        padding = 16
        IMG_MODEL_SIZE = 96
        print(img.shape)
@@ -298,26 +318,23 @@ class myUnet(Callback):
         return result
 
 
-    def predict_and_restore(self, model_weights, input_image, name):
+    def predict_and_restore(self, model_weights, input_image, name, input_image_is_path=True):
         print("loading image")
-        parts, dim = self.prepare_image_predict(input_image=input_image)
-        #imgs_train, imgs_mask_train, imgs_test = self.load_data()
-        print("loading data done")
+        parts, dim = self.prepare_image_predict(input_image=input_image, input_image_is_path=input_image_is_path)
 
-        #print(type(parts))
-        #print(parts.shape)
-
+        print("loading model")
         model = self.get_unet()
-        #print("got unet")
-        #print(parts.shape)
-
         model.load_weights(model_weights)
+
         print('predicting test data')
         imgs_mask_test = model.predict(parts, batch_size=1, verbose=1)
 
         neg_e = self.restore_image(imgs_mask_test, dim)
 
-        x = cv2.imread(input_image, cv2.IMREAD_GRAYSCALE)
+        if input_image_is_path:
+            x = cv2.imread(input_image, cv2.IMREAD_GRAYSCALE)
+        else:
+            x = input_image
 
         neg_e = neg_e[:,:,0]
         xu = image_add(neg_e, x)
@@ -362,7 +379,7 @@ class myUnet(Callback):
         plt.show()
 
 
-def test_predict(u_net, model):
+def test_predict(u_net, model_stacks):
     images_path = os.path.join('images', 'Originals')
     print(images_path)
     images = os.listdir(images_path)
@@ -375,7 +392,11 @@ def test_predict(u_net, model):
         current_image = os.path.join('images', 'Originals', image)
         image_read = cv2.imread(current_image, cv2.IMREAD_GRAYSCALE)
 
-        result_unet = u_net.predict_and_restore(model_weights=model, input_image=current_image, name=image[:-4])
+        unet_input = image_read
+        for iteration in range(model_stacks):
+            model = os.path.join('stacked_refinement_models', f'unet_SR_{iteration}.hdf5')
+            result_unet = u_net.predict_and_restore(model_weights=model, input_image=unet_input, name=image[:-4], input_image_is_path=False)
+            unet_input = result_unet
 
         ressult_otsu = threshold_otsu(result_unet)
         cv2.imwrite(os.path.join('results', image[:-4] + '_' + '_unet_.png'), result_unet)
@@ -389,18 +410,8 @@ def test_predict(u_net, model):
         result_niblack = threshold_niblack(image_read, window_size=window_size, k=0.8)
         result_niblack = ((image_read > result_niblack) * 255).astype(np.uint8)
 
-        #print(result_unet.shape)
-        #print("------")
-        #print(result_niblack.shape)
-        #exit()
-
-
         # FIX ground_truth and output from unet to be binarized (0 or 255)
         ground_truth = ((ground_truth > 128) * 255).astype(np.uint8)
-        #result_unet = result_unet[:,:,0]
-        #result_unet = ((result_unet > 128) * 255).astype(np.uint8)
-        #for pixel in result_unet:
-        #    print(pixel)
 
         img_true = np.array(ground_truth).ravel()
         img_pred = np.array(result_niblack).ravel()
