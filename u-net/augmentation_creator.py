@@ -67,7 +67,7 @@ def create_augmentation(root_files_path, destination_path):
     datasets = os.listdir(root_files_path)
     print(datasets)
     for dataset in datasets:
-        if dataset in ['Bickley','nabuco-dataset-1','ektaBinExp','Cuper','irish', 'ICDAR']:
+        if dataset in ['Bickley','ektaBinExp','ICDAR','DIBCO']:
             continue
 
         # if dataset not in ['dibco']:
