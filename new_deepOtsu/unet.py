@@ -206,16 +206,16 @@ class myUnet(Callback):
 
         ld = loader(1, data_path, org_folder, 'GT')
 
-        history = model.fit_generator(ld, epochs=epochs, verbose=1, shuffle=True, steps_per_epoch=2, callbacks=[reduce_lr, early_stopping,model_checkpoint, self])
-        pd.DataFrame(history.history).plot(figsize=(8, 5))
+        model.fit_generator(ld, epochs=epochs, verbose=1, shuffle=True, steps_per_epoch=218, callbacks=[reduce_lr, early_stopping,model_checkpoint, self])
+        #pd.DataFrame(history.history).plot(figsize=(8, 5))
 
         if iteration + 1 < model_stacks:
-            self.create_next_iteration_images(data_path, org_folder, iteration)
+            self.create_next_iteration_images(data_path, org_folder, iteration, model)
         else:
             if org_folder != 'Originals':
                 shutil.rmtree(os.path.join(data_path, org_folder))
             
-    def create_next_iteration_images(self, data_path, org_folder, iteration):
+    def create_next_iteration_images(self, data_path, org_folder, iteration, model):
         # Create input images to next iteration
         model_weights = os.path.join('stacked_refinement_models', f'unet_SR_{iteration}.hdf5')
         new_originals_folder = os.path.join(data_path, f'Originals_{iteration+1}')
@@ -233,9 +233,9 @@ class myUnet(Callback):
 
         for image in images:
             current_image = os.path.join(images_path, image)
- 
-            result_unet = self.predict_and_restore(model_weights=model_weights, input_image=current_image, name=image[:-4])
+            result_unet = self.predict_and_restore(input_image=current_image, name=image[:-4], model=model, model_weights=model_weights)
             new_image_path = os.path.join(new_originals_folder, image)
+            print(result_unet)
             cv2.imwrite(new_image_path, result_unet)
 
         if org_folder != 'Originals':
@@ -318,10 +318,10 @@ class myUnet(Callback):
         return result
 
 
-    def predict_and_restore(self, model_weights, input_image, name, input_image_is_path=True):
+    def predict_and_restore(self,input_image, name, input_image_is_path=True, model = None, model_weights = None):
         print("loading image")
         parts, dim = self.prepare_image_predict(input_image=input_image, input_image_is_path=input_image_is_path)
-
+        #if model is None:            
         print("loading model")
         model = self.get_unet()
         model.load_weights(model_weights)
