@@ -9,13 +9,13 @@ from matplotlib import pyplot as plt
 from os import makedirs
 import os
 from skimage.filters import threshold_otsu, threshold_niblack, threshold_sauvola
-from sklearn.metrics import jaccard_score, mean_squared_error
 from keras.preprocessing.image import ImageDataGenerator, array_to_img
 import cv2
 import statistics
 import argparse
 from zipfile import ZipFile
 import shutil
+from metrics import metrics
 
 parser = argparse.ArgumentParser(
     description='Runs the script %(prog)s with the specified parameters',
@@ -304,12 +304,12 @@ def test_predict(u_net, model):
     images = os.listdir(os.path.join('..', 'images'))
     results = []
     for image in images:
-        ground_truth = cv2.imread(os.path.join('..', 'GT', image[:-4] + '_gt.png'), cv2.IMREAD_GRAYSCALE)
+        ground_truth = cv2.imread(os.path.join('..', 'GT', image[:-4] + '.png'), cv2.IMREAD_GRAYSCALE)
         current_image = os.path.join('..', 'images', image)
         result_unet = u_net.binarise_image(model_weights=model, input_image=current_image)
         result_otsu = threshold_otsu(result_unet)
        # result_otsu = threshold_otsu(image_read)
-        result_unetotsu = ((result_unet > result_otsu) * 255).astype(np.uint8)
+        result_unet_otsu = ((result_unet > result_otsu) * 255).astype(np.uint8)
        # result_sauvola = threshold_sauvola(image_read)
        # result_sauvola = ((image_read > result_sauvola) * 255).astype(np.uint8)
        # window_size = 25
@@ -331,18 +331,28 @@ def test_predict(u_net, model):
         #cv2.imwrite(os.path.join('results', image[:-4] + '_' + str(iou_sauvola)[:5] + '_sauvola_.png'),
         #            result_sauvola)
 
-        img_pred = np.array(result_unetotsu).ravel()
-        iou_unet = statistics.mean(jaccard_score(img_true, img_pred, average=None))
-        psnr_unet = cv2.PSNR(img_true, img_pred)
-        mse_unet = mean_squared_error(img_true, img_pred)
-        cv2.imwrite(os.path.join('results', image[:-4] + '_' + str(iou_unet)[:5] + '_unet_.png'), result_unet)
-        cv2.imwrite(os.path.join('results', image[:-4] + '_' + str(iou_unet)[:5] + '_unet_otsu_.png'), result_unetotsu)
+        cv2.imwrite(os.path.join('results', image[:-4] + '_' + 'unet_.png'), result_unet)
+        cv2.imwrite(os.path.join('results', image[:-4] + '_' + 'unet_otsu_.png'), result_unet_otsu)
+        result_unet_otsu = result_unet_otsu[:,:,0]
 
-        results.append([iou_unet,psnr_unet,mse_unet])
+        fmeasure, pfmeasure, psnr, nrm, mpm, drd = metrics(result_unet_otsu, ground_truth)
+        results.append([fmeasure, pfmeasure, psnr, nrm, mpm, drd])
 
-    for index, image in enumerate(images):
-        print('Image', image, '- U-Net IoU:', results[index][0], 'PSNR:', results[index][1], 'MSE:', results[index][2])
 
+
+    fmeasure = statistics.mean([row[0] for row in results])
+    fpmeasure = statistics.mean([row[1] for row in results])
+    PSNR = statistics.mean([row[2] for row in results])
+    NRM = statistics.mean([row[3] for row in results])
+    MPM = statistics.mean([row[4] for row in results])
+    DRD = statistics.mean([row[5] for row in results])
+
+    print("fMeasure:" + str(fmeasure))
+    print("pfMeasure:" +str(fpmeasure))
+    print("PSNR:" + str(PSNR))
+    print("NRM:" + str(NRM))
+    print("MPM:" +str(MPM))
+    print("DRD:" + str(DRD))
 
 def set_params_train(args):
     """ sets parameters and trains the model
@@ -353,10 +363,11 @@ def set_params_train(args):
         check_gpu(True)
     else:
         check_gpu(False)
-    checkpoint_file = 'model//' + args.name + '.hdf5' if args.name is not None else \
-        'model//unet_testing_dataset.hdf5'
+
     data_paths = []
+    names = ""
     if args.ds is not None:
+        names = '_'.join(args.ds)
         for ds in args.ds:
             if '*' in ds:
                 name = ds.replace('*', '')
@@ -377,7 +388,15 @@ def set_params_train(args):
     lr = args.lr if args.lr is not None else 0.00001
     p = args.p if args.p is not None else 20
     se = args.se if args.se is not None else 300
+    
+    
 
+    if args.name is not None:
+        checkpoint_file ='model//' + args.name + '.hdf5'
+    else:
+        checkpoint_file = f'model//{ep}_{se}_{lr}_{p}_{f}_{names}.hdf5' 
+    
+    
     my_unet = myUnet()
     my_unet.train(checkpoint_file, data_paths, batch_size=bs, epochs=ep, factor=f, min_lr=lr, patience=p, steps_per_epoch=se)
 
@@ -396,14 +415,4 @@ if __name__ == '__main__':
             print("Give model name please.")
     else:
         set_params_train(args)
-    #check_gpu() 
-    #my_unet = myUnet()
-    #test_predict(my_unet, model)
-
-    #data_path = os.path.join('..','..', 'destination')
-    #checkpoint_file = 'model//unet_testing_dataset.hdf5'
-    #my_unet.train(data_path, checkpoint_file, epochs=1)
-
-    #If you want to test the model just uncomment the following code
-    #Pre-trained model
-    #model = os.path.join('model', 'unet_testing_dataset.hdf5')
+ 
