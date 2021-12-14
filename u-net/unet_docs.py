@@ -102,10 +102,6 @@ class myUnet(Callback):
         self.img_cols = img_cols
         self.counter = 0
 
-    def on_epoch_end(self, epoch, logs=None):
-        # Code here what you want each time an epoch ends
-        print('--- on_epoch_end ---')
-        #self.save_epoch_results()
 
 
     def get_unet(self):
@@ -113,25 +109,25 @@ class myUnet(Callback):
         inputs = Input((self.img_rows, self.img_cols, 1))
 
         conv1 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(inputs)
-        print("conv1 shape:", conv1.shape)
+      
         conv1 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv1)
-        print("conv1 shape:", conv1.shape)
+      
         pool1 = MaxPooling2D(pool_size=(2, 2))(conv1)
-        print("pool1 shape:", pool1.shape)
+       
 
         conv2 = Conv2D(128, 3, activation='relu', padding='same', kernel_initializer='he_normal')(pool1)
-        print("conv2 shape:", conv2.shape)
+       
         conv2 = Conv2D(128, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv2)
-        print("conv2 shape:", conv2.shape)
+       
         pool2 = MaxPooling2D(pool_size=(2, 2))(conv2)
-        print("pool2 shape:", pool2.shape)
+   
 
         conv3 = Conv2D(IMG_MODEL_SIZE, 3, activation='relu', padding='same', kernel_initializer='he_normal')(pool2)
-        print("conv3 shape:", conv3.shape)
+    
         conv3 = Conv2D(IMG_MODEL_SIZE, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv3)
-        print("conv3 shape:", conv3.shape)
+  
         pool3 = MaxPooling2D(pool_size=(2, 2))(conv3)
-        print("pool3 shape:", pool3.shape)
+     
 
         conv4 = Conv2D(512, 3, activation='relu', padding='same', kernel_initializer='he_normal')(pool3)
         conv4 = Conv2D(512, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv4)
@@ -144,8 +140,7 @@ class myUnet(Callback):
 
         up6 = Conv2D(512, 2, activation='relu', padding='same', kernel_initializer='he_normal')(
             UpSampling2D(size=(2, 2))(drop5))
-        print('up6 ' + str(up6))
-        print('drop4 ' + str(drop4))
+   
         # merge6 = merge([drop4, up6], mode = 'concat', concat_axis = 3)
         merge6 = concatenate([drop4, up6], axis=3)
 
@@ -303,41 +298,6 @@ class myUnet(Callback):
 
         return self.restore_image(imgs_mask_test, dim)
 
-
-    def save_epoch_results(self):
-        print("loading data")
-        imgs_train, imgs_mask_train, imgs_test = self.load_data()
-        print("loading data done")
-        model = self.get_unet()
-        print("got unet")
-
-        model.load_weights('unet_dibco.hdf5')
-
-        print('predict test data')
-        imgs = model.predict(imgs_test, batch_size=1, verbose=1)
-        path = "D:\\Roe\\Medium\\prjs\\u_net\\results\\" + str(self.counter)
-
-        self.counter += 1
-        if not os.path.exists(path):
-            makedirs(path)
-
-        for i in range(imgs.shape[0]):
-            img = imgs[i]
-            # self.show_image(img)
-            img = array_to_img(img)
-            img.save(path + "%d.jpg" % (i))
-
-
-    def show_image(self, image, *args, **kwargs):
-        title = kwargs.get('title', 'Figure')
-        if len(image.shape) == 3:
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        elif len(image.shape) == 2:
-            image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
-
-        plt.imshow(image)
-        plt.title(title)
-        plt.show()
 
 
 def test_predict(u_net, model):
