@@ -211,14 +211,12 @@ class myUnet(Callback):
        img = cv2.imread(input_image, cv2.IMREAD_GRAYSCALE)
        padding = 16
        IMG_MODEL_SIZE = 96
-       print(img.shape)
        width = img.shape[1]
        height = img.shape[0]
        delta_x = width // IMG_MODEL_SIZE
        delta_y = height // IMG_MODEL_SIZE
        remx = width % IMG_MODEL_SIZE
        remy = height % IMG_MODEL_SIZE
-       print('remy', remy)
        parts = []
        
        border_width = width + padding + IMG_MODEL_SIZE - remx + padding
@@ -282,15 +280,7 @@ class myUnet(Callback):
     def binarise_image(self, model_weights, input_image):
         print("loading image")
         parts, dim = self.prepare_image_predict(input_image=input_image)
-        #imgs_train, imgs_mask_train, imgs_test = self.load_data()
-        print("loading data done")
-
-        print(type(parts))
-        print(parts.shape)
-
         model = self.get_unet()
-        print("got unet")
-        print(parts.shape)
 
         model.load_weights(model_weights)
         print('predicting test data')
@@ -316,29 +306,20 @@ def test_predict(u_net, model):
         result_unet_otsu = result_unet_otsu[:,:,0]
 
         fmeasure, pfmeasure, psnr, nrm, mpm, drd = metrics(result_unet_otsu, ground_truth)
-        results.append([fmeasure, pfmeasure, psnr, nrm, mpm, drd])
+        results.append([['F-Measure', fmeasure], ['pf-Measure', pfmeasure], 
+        ['PSNR', psnr], ['NRM', nrm], ['MPM', mpm], ['DRD', drd]])
 
-
-
-    fmeasure = statistics.mean([row[0] for row in results])
-    fpmeasure = statistics.mean([row[1] for row in results])
-    PSNR = statistics.mean([row[2] for row in results])
-    NRM = statistics.mean([row[3] for row in results])
-    MPM = statistics.mean([row[4] for row in results])
-    DRD = statistics.mean([row[5] for row in results])
-
-    print("fMeasure:" + str(fmeasure))
-    print("pfMeasure:" +str(fpmeasure))
-    print("PSNR:" + str(PSNR))
-    print("NRM:" + str(NRM))
-    print("MPM:" +str(MPM))
-    print("DRD:" + str(DRD))
+    measures = []
+    for i in range(len(results[0])):
+        meas_mean = statistics.mean([row[i][1] for row in results])
+        measures.append([results[0][i][0], meas_mean])
+    headers = ['Measure', 'Score']
+    print(pd.DataFrame(measures, None, headers))
 
 def set_params_train(args):
     """ sets parameters and trains the model
     with data defined by user
     """
-    print(args)
     if args.gpu:
         check_gpu(True)
     else:
@@ -372,9 +353,9 @@ def set_params_train(args):
     
 
     if args.name is not None:
-        checkpoint_file ='model//' + args.name + '.hdf5'
+        checkpoint_file = os.path.join('model', args.name + '.hdf5')
     else:
-        checkpoint_file = f'model//{ep}_{se}_{lr}_{p}_{f}_{names}.hdf5' 
+        checkpoint_file = os.path.join('model', f'{ep}_{se}_{lr}_{p}_{f}_{names}.hdf5' )
     
     
     my_unet = myUnet()
