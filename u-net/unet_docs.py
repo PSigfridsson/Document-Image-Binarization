@@ -304,8 +304,8 @@ def test_predict(u_net, model):
     images = os.listdir(os.path.join('images'))
     results = []
     for image in images:
-        ground_truth = cv2.imread(os.path.join('..', 'GT', image[:-4] + '.png'), cv2.IMREAD_GRAYSCALE)
-        current_image = os.path.join('..', 'images', image)
+        ground_truth = cv2.imread(os.path.join('GT', image[:-4] + '.png'), cv2.IMREAD_GRAYSCALE)
+        current_image = os.path.join('images', image)
         result_unet = u_net.binarise_image(model_weights=model, input_image=current_image)
         result_otsu = threshold_otsu(result_unet)
         result_unet_otsu = ((result_unet > result_otsu) * 255).astype(np.uint8)
