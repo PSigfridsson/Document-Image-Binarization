@@ -14,10 +14,10 @@ from tensorflow.keras.preprocessing.image import ImageDataGenerator, array_to_im
 import cv2
 import statistics
 import gt_construction
-import shutil
 
 USE_GPU = True
 IMG_MODEL_SIZE = 128
+
 
 def image_add(img_a, img_b):
     result = img_a+img_b #memes
@@ -53,6 +53,7 @@ def loader(batch_size, train_path, image_folder, mask_folder, mask_color_mode="g
                                                       batch_size=batch_size, save_to_dir=save_to_dir, seed=1)
     train_generator = zip(image_generator, mask_generator)
 
+    # counter = 0
     for (img, mask) in train_generator:
         mask = mask[0,:,:,:]
         mask = ((mask > 0.5)).astype(np.uint8)
@@ -62,9 +63,26 @@ def loader(batch_size, train_path, image_folder, mask_folder, mask_color_mode="g
 
         neg_e = grayscale_gt-img
         neg_e = remove_negative_pixels(neg_e)
+        #e = img-grayscale_gt
+        #e = remove_negative_pixels(e)
+
+        #cv2.imwrite(os.path.join('results', 'mask.png'), mask*255)
+        #cv2.imwrite(os.path.join('results', 'img.png'), img*255)
+        #cv2.imwrite(os.path.join('results', 'grayscale_gt.png'), grayscale_gt*255)
+        # norm_image = cv2.normalize(neg_e, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
+        # cv2.imwrite(os.path.join('results', str(counter) + 'neg_e.png'), neg_e*255)
+        # cv2.imwrite(os.path.join('results', str(counter) + 'neg_e_minmax.png'), norm_image*255)
+        #cv2.imwrite(os.path.join('results', str(counter) + 'e.png'), e*255)
+        #cv2.imwrite(os.path.join('results', 'e.png'), e*255)
 
         neg_e = np.expand_dims(neg_e, axis=0)
         img = np.expand_dims(img, axis=0)
+
+        # grayscale_gt = np.expand_dims(grayscale_gt, axis=0)
+        # img = np.expand_dims(img, axis=0)
+
+        # mask = np.expand_dims(mask, axis=0)
+        # counter += 1
 
         yield (img, neg_e)
 
@@ -190,7 +208,7 @@ class myUnet(Callback):
         return model
 
 
-    def train(self, data_path, checkpoint_file, epochs=5, iteration=0, model_stacks=0):
+    def train(self, data_path, checkpoint_file, epochs=50):
         model = self.get_unet()
         print("got unet")
 
@@ -199,95 +217,96 @@ class myUnet(Callback):
         reduce_lr = ReduceLROnPlateau(factor=0.1, patience=5, min_lr=0.00001, verbose=1, monitor='loss')
         print('Fitting model...')
 
-        if iteration == 0:
-            org_folder = 'Originals';
-        else:
-            org_folder = f'Originals_{iteration}';
+        ld = loader(1, data_path, 'Originals', 'GT')
 
-        ld = loader(1, data_path, org_folder, 'GT')
+        history = model.fit_generator(ld, epochs=epochs, verbose=1, shuffle=True, steps_per_epoch=218, callbacks=[reduce_lr, early_stopping,model_checkpoint, self])
+        pd.DataFrame(history.history).plot(figsize=(8, 5))
 
-        model.fit_generator(ld, epochs=epochs, verbose=1, shuffle=True, steps_per_epoch=218, callbacks=[reduce_lr, early_stopping,model_checkpoint, self])
-        #pd.DataFrame(history.history).plot(figsize=(8, 5))
+    def prepare_image_predict_original(self, input_image):
+        img = cv2.imread(input_image, cv2.IMREAD_GRAYSCALE)
+        print(img.shape)
+        width = img.shape[1]
+        height = img.shape[0]
+        delta_x = width // IMG_MODEL_SIZE
+        delta_y = height // IMG_MODEL_SIZE
+        remx = width % IMG_MODEL_SIZE
+        remy = height % IMG_MODEL_SIZE
+        print('remy', remy)
+        parts = []
+        border = np.zeros([IMG_MODEL_SIZE, IMG_MODEL_SIZE], dtype=np.uint8)
+        border.fill(255)  # or img[:] = 255
 
-        if iteration + 1 < model_stacks:
-            self.create_next_iteration_images(data_path, org_folder, iteration, model)
-        else:
-            if org_folder != 'Originals':
-                shutil.rmtree(os.path.join(data_path, org_folder))
-            
-    def create_next_iteration_images(self, data_path, org_folder, iteration, model):
-        # Create input images to next iteration
-        model_weights = os.path.join('stacked_refinement_models', f'unet_SR_{iteration}.hdf5')
-        new_originals_folder = os.path.join(data_path, f'Originals_{iteration+1}')
+        for x in range(delta_x):
+            xinit = x * IMG_MODEL_SIZE
+            for y in range(delta_y):
+                yinit = y * IMG_MODEL_SIZE
+                part = img[yinit:yinit + IMG_MODEL_SIZE, xinit:xinit+IMG_MODEL_SIZE]
+                parts.append(part.astype('float32') / 255)
+            if remy > 0:
+                border.fill(255)
+                border[:remy, :] = img[height-remy:height, xinit:xinit+IMG_MODEL_SIZE]
+                parts.append(border.astype('float32') / 255)
 
-        try:
-            os.mkdir(new_originals_folder)
-        except Exception as e:
-            print(f"Folder '{new_originals_folder}'already exists - Removing it's content")
+        if remx > 0:
+            xinit = width - remx
+            for y in range(delta_y):
+                yinit = y * IMG_MODEL_SIZE
+                border.fill(255)
+                border[:, :remx] = img[yinit:yinit + IMG_MODEL_SIZE, xinit:width]
+                parts.append(border.astype('float32') / 255)
+            if remy > 0:
+                border.fill(255)
+                border[:remy, :remx] = img[height-remy:height, xinit:width]
+                parts.append(border.astype('float32') / 255)
 
-            for file in os.listdir(new_originals_folder):
-                os.remove(os.path.join(new_originals_folder, file))
+        return np.asarray(parts), (img.shape[0], img.shape[1])
 
-        images_path = os.path.join(data_path, org_folder)
-        images = os.listdir(images_path)
+    def prepare_image_predict(self, input_image):
+        original_model_size = IMG_MODEL_SIZE
+        downsampling_layer = 4
+        border_size = 2**downsampling_layer
+        patch_size = IMG_MODEL_SIZE - 2*border_size
 
-        for image in images:
-            current_image = os.path.join(images_path, image)
-            result_unet = self.predict_and_restore(input_image=current_image, name=image[:-4], model=model, model_weights=model_weights)
-            new_image_path = os.path.join(new_originals_folder, image)
-            print(result_unet)
-            cv2.imwrite(new_image_path, result_unet)
+        img = cv2.imread(input_image, cv2.IMREAD_GRAYSCALE)
+        print(img.shape)
+        width = img.shape[1]
+        height = img.shape[0]
+        delta_x = width // patch_size
+        delta_y = height // patch_size
+        remx = width % patch_size
+        remy = height % patch_size
 
-        if org_folder != 'Originals':
-            shutil.rmtree(images_path)
+        print(width, patch_size, delta_x, remx)
+        print(height, patch_size, delta_y, remy)
 
+        border_width = border_size + width + patch_size - remx + border_size
+        border_height = border_size + height  + patch_size - remy + border_size
 
-    def prepare_image_predict(self, input_image, input_image_is_path=True):
-       if input_image_is_path:
-           img = cv2.imread(input_image, cv2.IMREAD_GRAYSCALE)
-       else:
-           img = input_image
+        parts = []
+        border = np.zeros([border_height, border_width], dtype=np.uint8)
+        border.fill(255)  # or img[:] = 255
 
-       padding = 16
-       IMG_MODEL_SIZE = 96
-       print(img.shape)
-       width = img.shape[1]
-       height = img.shape[0]
-       delta_x = width // IMG_MODEL_SIZE
-       delta_y = height // IMG_MODEL_SIZE
-       remx = width % IMG_MODEL_SIZE
-       remy = height % IMG_MODEL_SIZE
-       print('remy', remy)
-       parts = []
-       
-       border_width = width + padding + IMG_MODEL_SIZE - remx + padding
-       border_height = height + padding + IMG_MODEL_SIZE - remy + padding
-       
-       border = np.zeros([border_height, border_width], dtype=np.uint8)
-       border.fill(255)  # or img[:] = 255
-       border[padding:padding+height,padding:padding+width] = img
-       cv2.imwrite(os.path.join('..', 'testimages', 'border.png'), border)
-       if remx > 0:
-           delta_x = delta_x + 1
-       if remy > 0:
-           delta_y = delta_y + 1
-       for x in range(delta_x):
-           xinit = x * IMG_MODEL_SIZE
-           for y in range(delta_y):
-               yinit = y * IMG_MODEL_SIZE
-               part = border[yinit:yinit + 128,xinit:xinit +128]
-               parts.append(part.astype('float32'))
-               
-       #for i,part in enumerate(parts):
-           #cv2.imwrite(os.path.join('..', 'testimages', str(i) +'.png'), part)
-           
-       return np.asarray(parts), (img.shape[0], img.shape[1])
+        border[border_size:height+border_size, border_size:width+border_size] = img
+        #cv2.imwrite(os.path.join('results', 'img.png'), img)
+        #cv2.imwrite(os.path.join('results', 'border.png'), border)
+
+        if remx > 0:
+            delta_x += 1
+        if remy > 0:
+            delta_y += 1
+
+        for x in range(delta_x):
+            xinit = x * patch_size
+            for y in range(delta_y):
+                yinit = y * patch_size
+                #print("ystart: " + str(yinit) + ", yend: " + str(yinit+original_model_size) + ", imgstart: " + str(yinit+border_size) + ", imgend: " + str(yinit+original_model_size-border_size))
+                part = border[yinit:yinit + original_model_size, xinit:xinit+original_model_size]
+                parts.append(part.astype('float32') / 255)
+
+        return np.asarray(parts), (img.shape[0], img.shape[1])
 
 
-
-    def restore_image(self, parts, dim):
-        padding = 16
-        IMG_MODEL_SIZE = 96
+    def restore_image_original(self, parts, dim):
         width = dim[1]
         height = dim[0]
         result = np.zeros([height, width, 1], dtype=np.uint8)
@@ -297,47 +316,146 @@ class myUnet(Callback):
         remx = width % IMG_MODEL_SIZE
         remy = height % IMG_MODEL_SIZE
         index = 0
-        border_width = width + padding + IMG_MODEL_SIZE - remx + padding
-        border_height = height + padding + IMG_MODEL_SIZE - remy + padding
-       
-        border = np.zeros([border_height, border_width, 1], dtype=np.uint8)
-        border.fill(0)  # or img[:] = 255
-        if remx > 0:
-           delta_x = delta_x + 1
-        if remy > 0:
-           delta_y = delta_y + 1
         for x in range(delta_x):
             xinit = x * IMG_MODEL_SIZE
             for y in range(delta_y):
                 yinit = y * IMG_MODEL_SIZE
-                #cv2.imwrite(os.path.join('..', 'testimages', str(index) +'_read.png'), parts[index]*255)
-                border[yinit:yinit + IMG_MODEL_SIZE,xinit:xinit + IMG_MODEL_SIZE] = parts[index][padding:IMG_MODEL_SIZE + padding,padding:IMG_MODEL_SIZE + padding] * 255
+                result[yinit:yinit+IMG_MODEL_SIZE, xinit:xinit+IMG_MODEL_SIZE] = parts[index] * 255
                 index += 1
-            
-        result = border[:height,:width]
+            if remy > 0:
+                result[height-remy:, xinit:xinit+IMG_MODEL_SIZE] = parts[index][:remy, :] * 255
+                index += 1
+        if remx > 0:
+            xinit = width - remx
+            for y in range(delta_y):
+                yinit = y * IMG_MODEL_SIZE
+                result[yinit:yinit+IMG_MODEL_SIZE, xinit:] = parts[index][:, :remx] * 255
+                index += 1
+            if remy > 0:
+                result[height-remy:, xinit:xinit+IMG_MODEL_SIZE] = parts[index][:remy, :remx] * 255
+
+        return result
+
+    def restore_image(self, parts, dim):
+        original_model_size = IMG_MODEL_SIZE
+        downsampling_layer = 4
+        border_size = 2**downsampling_layer
+        patch_size = IMG_MODEL_SIZE - 2*border_size
+
+        width = dim[1] # original image size
+        height = dim[0]
+        result = np.zeros([height, width, 1], dtype=np.uint8)
+        result.fill(255)  # or img[:] = 255
+        delta_x = width // patch_size
+        delta_y = height // patch_size
+        remx = width % patch_size
+        remy = height % patch_size
+        index = 0
+
+        print(width, delta_x, remx)
+        print(height, delta_y, remy)
+        if remx > 0:
+            delta_x += 1
+
+        for x in range(delta_x):
+            xinit = x * patch_size
+            for y in range(delta_y):
+                yinit = y * patch_size
+                part = parts[index]
+                if x == delta_x-1 and remx > 0: # right of picture (remx)
+                    result[yinit:yinit+patch_size, xinit:xinit+remx] = 255 * part[border_size:border_size+patch_size, border_size:border_size+remx]
+                else: # Standard case, no remx or remy problems
+                    result[yinit:yinit+patch_size, xinit:xinit+patch_size] = 255 * part[border_size:border_size+patch_size, border_size:border_size+patch_size]
+                index += 1
+
+            if remy > 0 and x == delta_x-1 and remx > 0: # bottom-right of picture (remy + remx)
+                part = part = parts[index]
+                result[height-remy:height, width-remx:width] = 255 * part[border_size:border_size+remy, border_size:border_size+remx]
+                index += 1
+            elif remy > 0: # bottom of picture (remy)
+                part = part = parts[index]
+                result[height-remy:height, xinit:xinit+patch_size] = 255 * part[border_size:border_size+remy, border_size:border_size+patch_size]
+                index += 1
         return result
 
 
-    def predict_and_restore(self,input_image, name, input_image_is_path=True, model = None, model_weights = None):
-        print("loading image")
-        parts, dim = self.prepare_image_predict(input_image=input_image, input_image_is_path=input_image_is_path)
-        #if model is None:            
-        print("loading model")
-        model = self.get_unet()
-        model.load_weights(model_weights)
 
+        for x in range(delta_x):
+            xinit = x * IMG_MODEL_SIZE
+            for y in range(delta_y):
+                yinit = y * IMG_MODEL_SIZE
+                result[yinit:yinit+IMG_MODEL_SIZE, xinit:xinit+IMG_MODEL_SIZE] = parts[index] * 255
+                index += 1
+            if remy > 0:
+                result[height-remy:, xinit:xinit+IMG_MODEL_SIZE] = parts[index][:remy, :] * 255
+                index += 1
+        if remx > 0:
+            xinit = width - remx
+            for y in range(delta_y):
+                yinit = y * IMG_MODEL_SIZE
+                result[yinit:yinit+IMG_MODEL_SIZE, xinit:] = parts[index][:, :remx] * 255
+                index += 1
+            if remy > 0:
+                result[height-remy:, xinit:xinit+IMG_MODEL_SIZE] = parts[index][:remy, :remx] * 255
+
+        exit()
+        return result
+
+
+    def binarise_image(self, model_weights, input_image, name):
+        print("loading image")
+
+        # PREPARE IMAGE PREDICT 
+        parts, dim = self.prepare_image_predict(input_image=input_image)
+        #imgs_train, imgs_mask_train, imgs_test = self.load_data()
+        print("loading data done")
+
+
+
+        #for i, part in enumerate(parts):
+        #    cv2.imwrite(os.path.join('results', 'part_' + str(i) + '.png'), part*255)
+        #    print("Saved part ", i)
+
+        #print(type(parts))
+        print(parts.shape)
+        model = self.get_unet()
+        #print("got unet")
+        #print(parts.shape)
+
+        model.load_weights(model_weights)
         print('predicting test data')
         imgs_mask_test = model.predict(parts, batch_size=1, verbose=1)
 
+        for i, predicted_part in enumerate(imgs_mask_test[:,:,:,0]):
+            cv2.imwrite(os.path.join('results', 'predicted_' + str(i) + '.png'), predicted_part*255)
+            print("Saved predicted part ", i)
+        
+        
+        # BUILD/RESTORE PRECITED IMAGE FROM PREDICTED PARTS
         neg_e = self.restore_image(imgs_mask_test, dim)
+        cv2.imwrite(os.path.join('results', 'neg_e.png'), neg_e)
 
-        if input_image_is_path:
-            x = cv2.imread(input_image, cv2.IMREAD_GRAYSCALE)
-        else:
-            x = input_image
+        exit()
+
+        x = cv2.imread(input_image, cv2.IMREAD_GRAYSCALE)
 
         neg_e = neg_e[:,:,0]
         xu = image_add(neg_e, x)
+
+        # #awawdawd
+        # mask = cv2.imread(os.path.join('images', 'GT', name+'.png'), cv2.IMREAD_GRAYSCALE)
+
+        # mask = ((mask/255 > 0.5)).astype(np.uint8)
+        # x = x/255
+        # x = np.expand_dims(x, axis=2)
+        # grayscale_gt = gt_construction.generate_grayscale_gt(x, np.expand_dims(mask, axis=2))
+
+        # neg_e_real = grayscale_gt-x # grayscale_gt-img
+        # neg_e_real = remove_negative_pixels(neg_e_real)
+        # neg_e_real = (neg_e_real * 255).astype(np.uint8)
+
+        # cv2.imwrite(os.path.join('results', name + '_XU_REAL.png'), image_add(neg_e_real, x*255))
+        cv2.imwrite(os.path.join('results', name + '_NEG_E_PREDICTED.png'), neg_e)
 
         return xu
 
@@ -379,7 +497,7 @@ class myUnet(Callback):
         plt.show()
 
 
-def test_predict(u_net, model_stacks):
+def test_predict(u_net, model):
     images_path = os.path.join('images', 'Originals')
     print(images_path)
     images = os.listdir(images_path)
@@ -392,11 +510,7 @@ def test_predict(u_net, model_stacks):
         current_image = os.path.join('images', 'Originals', image)
         image_read = cv2.imread(current_image, cv2.IMREAD_GRAYSCALE)
 
-        unet_input = image_read
-        for iteration in range(model_stacks):
-            model = os.path.join('stacked_refinement_models', f'unet_SR_{iteration}.hdf5')
-            result_unet = u_net.predict_and_restore(model_weights=model, input_image=unet_input, name=image[:-4], input_image_is_path=False)
-            unet_input = result_unet
+        result_unet = u_net.binarise_image(model_weights=model, input_image=current_image, name=image[:-4])
 
         ressult_otsu = threshold_otsu(result_unet)
         cv2.imwrite(os.path.join('results', image[:-4] + '_' + '_unet_.png'), result_unet)
@@ -410,8 +524,18 @@ def test_predict(u_net, model_stacks):
         result_niblack = threshold_niblack(image_read, window_size=window_size, k=0.8)
         result_niblack = ((image_read > result_niblack) * 255).astype(np.uint8)
 
+        #print(result_unet.shape)
+        #print("------")
+        #print(result_niblack.shape)
+        #exit()
+
+
         # FIX ground_truth and output from unet to be binarized (0 or 255)
         ground_truth = ((ground_truth > 128) * 255).astype(np.uint8)
+        #result_unet = result_unet[:,:,0]
+        #result_unet = ((result_unet > 128) * 255).astype(np.uint8)
+        #for pixel in result_unet:
+        #    print(pixel)
 
         img_true = np.array(ground_truth).ravel()
         img_pred = np.array(result_niblack).ravel()
