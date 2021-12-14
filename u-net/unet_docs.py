@@ -301,7 +301,7 @@ class myUnet(Callback):
 
 
 def test_predict(u_net, model):
-    images = os.listdir(os.path.join('..', 'images'))
+    images = os.listdir(os.path.join('images'))
     results = []
     for image in images:
         ground_truth = cv2.imread(os.path.join('..', 'GT', image[:-4] + '.png'), cv2.IMREAD_GRAYSCALE)
