@@ -175,7 +175,6 @@ class myUnet(Callback):
 
         model = Model(inputs, conv10)
         # model = Model()
-
         model.compile(optimizer=Adam(lr=1e-4), loss='binary_crossentropy', metrics=['accuracy'])
 
         return model
@@ -362,6 +361,9 @@ def set_params_train(args):
     my_unet.train(checkpoint_file, data_paths, batch_size=bs, epochs=ep, factor=f, min_lr=lr, patience=p, steps_per_epoch=se)
 
 def load_model_predict(model_name='unet_testing_dataset.hdf5'):
+    """ loads the model specified by input arg
+    and predicts from images folder
+    """
     my_unet = myUnet()
     model = os.path.join('model', model_name + '.hdf5')
     test_predict(my_unet, model)
@@ -373,7 +375,7 @@ if __name__ == '__main__':
         if args.name is not None:
             load_model_predict(args.name)
         else:
-            print("Give model name please.")
+            print("Give a model name please.")
     else:
         set_params_train(args)
  
