@@ -308,28 +308,8 @@ def test_predict(u_net, model):
         current_image = os.path.join('..', 'images', image)
         result_unet = u_net.binarise_image(model_weights=model, input_image=current_image)
         result_otsu = threshold_otsu(result_unet)
-       # result_otsu = threshold_otsu(image_read)
         result_unet_otsu = ((result_unet > result_otsu) * 255).astype(np.uint8)
-       # result_sauvola = threshold_sauvola(image_read)
-       # result_sauvola = ((image_read > result_sauvola) * 255).astype(np.uint8)
-       # window_size = 25
-       # result_niblack = threshold_niblack(image_read, window_size=window_size, k=0.8)
-       # result_niblack = ((image_read > result_niblack) * 255).astype(np.uint8)
-        
-       
         img_true = np.array(ground_truth).ravel()
-        #iou_niblack = statistics.mean(jaccard_score(img_true, img_pred, average=None))
-        #cv2.imwrite(os.path.join('results', image[:-4] + '_' + str(iou_niblack)[:5] + '_niblack_.png'),
-        #           result_niblack)
-
-        #img_pred = np.array(result_otsu).ravel()
-        #iou_otsu = statistics.mean(jaccard_score(img_true, img_pred, average=None))
-        #cv2.imwrite(os.path.join('results', image[:-4] + '_' + str(iou_otsu)[:5] + '_otsu_.png'), result_otsu)
-
-        #img_pred = np.array(result_sauvola).ravel()
-        #iou_sauvola = statistics.mean(jaccard_score(img_true, img_pred, average=None))
-        #cv2.imwrite(os.path.join('results', image[:-4] + '_' + str(iou_sauvola)[:5] + '_sauvola_.png'),
-        #            result_sauvola)
 
         cv2.imwrite(os.path.join('results', image[:-4] + '_' + 'unet_.png'), result_unet)
         cv2.imwrite(os.path.join('results', image[:-4] + '_' + 'unet_otsu_.png'), result_unet_otsu)
