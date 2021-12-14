@@ -379,29 +379,6 @@ class myUnet(Callback):
         return result
 
 
-
-        for x in range(delta_x):
-            xinit = x * IMG_MODEL_SIZE
-            for y in range(delta_y):
-                yinit = y * IMG_MODEL_SIZE
-                result[yinit:yinit+IMG_MODEL_SIZE, xinit:xinit+IMG_MODEL_SIZE] = parts[index] * 255
-                index += 1
-            if remy > 0:
-                result[height-remy:, xinit:xinit+IMG_MODEL_SIZE] = parts[index][:remy, :] * 255
-                index += 1
-        if remx > 0:
-            xinit = width - remx
-            for y in range(delta_y):
-                yinit = y * IMG_MODEL_SIZE
-                result[yinit:yinit+IMG_MODEL_SIZE, xinit:] = parts[index][:, :remx] * 255
-                index += 1
-            if remy > 0:
-                result[height-remy:, xinit:xinit+IMG_MODEL_SIZE] = parts[index][:remy, :remx] * 255
-
-        exit()
-        return result
-
-
     def binarise_image(self, model_weights, input_image, name):
         print("loading image")
 
@@ -433,9 +410,7 @@ class myUnet(Callback):
         
         # BUILD/RESTORE PRECITED IMAGE FROM PREDICTED PARTS
         neg_e = self.restore_image(imgs_mask_test, dim)
-        cv2.imwrite(os.path.join('results', 'neg_e.png'), neg_e)
-
-        exit()
+        cv2.imwrite(os.path.join('results', 'neg_e_predicted.png'), neg_e)
 
         x = cv2.imread(input_image, cv2.IMREAD_GRAYSCALE)
 
@@ -455,7 +430,7 @@ class myUnet(Callback):
         # neg_e_real = (neg_e_real * 255).astype(np.uint8)
 
         # cv2.imwrite(os.path.join('results', name + '_XU_REAL.png'), image_add(neg_e_real, x*255))
-        cv2.imwrite(os.path.join('results', name + '_NEG_E_PREDICTED.png'), neg_e)
+        #cv2.imwrite(os.path.join('results', name + '_NEG_E_PREDICTED.png'), neg_e)
 
         return xu
 
