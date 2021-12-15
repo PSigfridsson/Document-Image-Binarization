@@ -19,8 +19,15 @@ def main():
 
 def train_net(my_unet):
 	data_path = os.path.join('hampus_dataset_REAL')
-	checkpoint_file = os.path.join('recursive_refinement.hdf5')
-	my_unet.train(data_path, checkpoint_file, epochs=1, no_recursions=5)
+	models_path = "stacked_refinement_models"
+	checkpoint_file = os.path.join(models_path, 'stacked_refinement_iteration_0.hdf5')
+
+	try:
+		os.mkdir(models_path)
+	except Exception as e:
+		print(f"Folder '{models_path}' already exists")
+
+	my_unet.train(data_path, checkpoint_file, models_path=models_path, epochs=1, no_stacks=5)
 
 def predict_net(my_unet):
 	model = os.path.join('ACTUALLY_WORKING.hdf5')

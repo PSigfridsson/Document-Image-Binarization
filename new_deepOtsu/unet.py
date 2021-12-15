@@ -207,7 +207,7 @@ class myUnet(Callback):
         return model
 
 
-    def train(self, data_path, checkpoint_file, epochs=50, no_recursions=1):
+    def train(self, data_path, checkpoint_file, models_path, epochs=50, no_stacks=1):
         model = self.get_unet()
         print("got unet")
 
@@ -216,18 +216,18 @@ class myUnet(Callback):
         reduce_lr = ReduceLROnPlateau(factor=0.1, patience=5, min_lr=0.00001, verbose=1, monitor='loss')
 
         print('Fitting model...')
-        if no_recursions == 1:
+        if no_stacks == 1:
             ld = loader(1, data_path, 'Originals', 'GT', 'Originals')
-            model.fit_generator(ld, epochs=epochs, verbose=1, shuffle=True, steps_per_epoch=1, callbacks=[reduce_lr, early_stopping,model_checkpoint, self])
+            model.fit_generator(ld, epochs=epochs, verbose=1, shuffle=True, steps_per_epoch=218, callbacks=[reduce_lr, early_stopping, model_checkpoint, self])
         else:
-            self.recursive_refinement(model, data_path, epochs, no_recursions, reduce_lr, early_stopping,model_checkpoint)
+            self.stacked_refinement(model, data_path, epochs, no_stacks, reduce_lr, early_stopping, model_checkpoint, models_path)
 
     def recursive_refinement(self, model, data_path, epochs, no_recursions, reduce_lr, early_stopping, model_checkpoint):
         pred_originals = 'Originals'
 
         for recursion in range(no_recursions):
             ld = loader(1, data_path, pred_originals, 'GT', 'Originals')
-            model.fit_generator(ld, epochs=epochs, verbose=1, shuffle=True, steps_per_epoch=2, callbacks=[reduce_lr, early_stopping,model_checkpoint, self])
+            model.fit_generator(ld, epochs=epochs, verbose=1, shuffle=True, steps_per_epoch=218, callbacks=[reduce_lr, early_stopping, model_checkpoint, self])
 
             new_originals_folder = os.path.join(data_path, f'Originals_{recursion}')
 
@@ -247,7 +247,41 @@ class myUnet(Callback):
                 new_image_path = os.path.join(new_originals_folder, image)
                 cv2.imwrite(new_image_path, xu)
 
+            early_stopping = EarlyStopping(patience=20, verbose=1, monitor='loss')
+            reduce_lr = ReduceLROnPlateau(factor=0.1, patience=5, min_lr=0.00001, verbose=1, monitor='loss')
             pred_originals = f'Originals_{recursion}'
+
+    def stacked_refinement(self, model, data_path, epochs, no_stacks, reduce_lr, early_stopping, model_checkpoint, models_path):
+        pred_originals = 'Originals'
+
+        for stack in range(no_stacks):
+            ld = loader(1, data_path, pred_originals, 'GT', 'Originals')
+            model.fit_generator(ld, epochs=epochs, verbose=1, shuffle=True, steps_per_epoch=218, callbacks=[reduce_lr, early_stopping, model_checkpoint, self])
+
+            new_originals_folder = os.path.join(data_path, f'Originals_{stack}')
+
+            try:
+                os.mkdir(new_originals_folder)
+            except Exception as e:
+                print(f"Folder '{new_originals_folder}' already exists!")
+
+                for file in os.listdir(new_originals_folder):
+                    os.remove(os.path.join(new_originals_folder, file))
+
+            images_path = os.path.join(data_path, pred_originals)
+            for image in os.listdir(images_path):
+                image_path = os.path.join(images_path, image)
+                xu = self.binarise_image(input_image=image_path, name=image[:-4], model=model)
+
+                new_image_path = os.path.join(new_originals_folder, image)
+                cv2.imwrite(new_image_path, xu)
+
+            model = self.get_unet()
+            checkpoint_file = os.path.join(models_path, f'stacked_refinement_iteration_{stack+1}.hdf5')
+            model_checkpoint = ModelCheckpoint(checkpoint_file, monitor='loss', verbose=1, save_best_only=True)
+            early_stopping = EarlyStopping(patience=20, verbose=1, monitor='loss')
+            reduce_lr = ReduceLROnPlateau(factor=0.1, patience=5, min_lr=0.00001, verbose=1, monitor='loss')
+            pred_originals = f'Originals_{stack}'
 
     def prepare_image_predict_original(self, input_image):
         img = cv2.imread(input_image, cv2.IMREAD_GRAYSCALE)
@@ -379,8 +413,8 @@ class myUnet(Callback):
         remy = height % patch_size
         index = 0
 
-        print(width, delta_x, remx)
-        print(height, delta_y, remy)
+        #print(width, delta_x, remx)
+        #print(height, delta_y, remy)
         if remx > 0:
             delta_x += 1
 
@@ -391,21 +425,21 @@ class myUnet(Callback):
                 part = parts[index]
                 if x == delta_x-1 and remx > 0: # right of picture (remx)
                     result[yinit:yinit+patch_size, xinit:xinit+remx] = 255 * part[border_size:border_size+patch_size, border_size:border_size+remx]
-                    print(255 * part[border_size:border_size+patch_size, border_size:border_size+remx])
+                    #print(255 * part[border_size:border_size+patch_size, border_size:border_size+remx])
                 else: # Standard case, no remx or remy problems
                     result[yinit:yinit+patch_size, xinit:xinit+patch_size] = 255 * part[border_size:border_size+patch_size, border_size:border_size+patch_size]
-                    print(255 * part[border_size:border_size+patch_size, border_size:border_size+patch_size])
+                    #print(255 * part[border_size:border_size+patch_size, border_size:border_size+patch_size])
                 index += 1
 
             if remy > 0 and x == delta_x-1 and remx > 0: # bottom-right of picture (remy + remx)
                 part = part = parts[index]
                 result[height-remy:height, width-remx:width] = 255 * part[border_size:border_size+remy, border_size:border_size+remx]
-                print(255 * part[border_size:border_size+remy, border_size:border_size+remx])
+                #print(255 * part[border_size:border_size+remy, border_size:border_size+remx])
                 index += 1
             elif remy > 0: # bottom of picture (remy)
                 part = part = parts[index]
                 result[height-remy:height, xinit:xinit+patch_size] = 255 * part[border_size:border_size+remy, border_size:border_size+patch_size]
-                print(255 * part[border_size:border_size+remy, border_size:border_size+patch_size])
+                #print(255 * part[border_size:border_size+remy, border_size:border_size+patch_size])
                 index += 1
         return result
 
@@ -427,7 +461,7 @@ class myUnet(Callback):
         
         # BUILD/RESTORE PREDICTED IMAGE FROM PREDICTED PARTS
         neg_e = self.restore_image(imgs_mask_test, dim)
-        # cv2.imwrite(os.path.join('results', f'neg_e_predicted_{name}.png'), neg_e)
+        cv2.imwrite(os.path.join('results', f'neg_e_predicted_{name}.png'), neg_e)
 
         x = cv2.imread(input_image, cv2.IMREAD_GRAYSCALE)
 
