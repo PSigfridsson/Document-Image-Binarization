@@ -70,7 +70,7 @@ def loader(batch_size, train_path, image_folder, mask_folder, original_image_fol
 
         grayscale_gt = gt_construction.generate_grayscale_gt(og, mask)
 
-        neg_e = grayscale_gt-og
+        neg_e = grayscale_gt-img
         #neg_e = remove_negative_pixels(neg_e)
 
         # cv2.imwrite(os.path.join('results', str(counter) + 'img.png'), 255*img)
@@ -221,6 +221,7 @@ class myUnet(Callback):
             model.fit_generator(ld, epochs=epochs, verbose=1, shuffle=True, steps_per_epoch=218, callbacks=[reduce_lr, early_stopping, model_checkpoint, self])
         else:
             self.stacked_refinement(model, data_path, epochs, no_stacks, reduce_lr, early_stopping, model_checkpoint, models_path)
+            #self.recursive_refinement(model, data_path, epochs, no_stacks, reduce_lr, early_stopping, model_checkpoint)
 
     def recursive_refinement(self, model, data_path, epochs, no_recursions, reduce_lr, early_stopping, model_checkpoint):
         pred_originals = 'Originals'
