@@ -21,15 +21,18 @@ IMG_MODEL_SIZE = 128
 
 
 def image_add(img_a, img_b):
-    result = img_a+img_b #memes
+    result = np.zeros([img_a.shape[0], img_a.shape[1]], dtype=np.uint8)
 
     for y, row in enumerate(img_a):
         for x, pixel in enumerate(row):
             if int(img_a[y,x])+int(img_b[y,x]) > 255:
                 result[y,x] = 255
+            elif int(img_a[y,x])+int(img_b[y,x]) < 0:
+                result[y,x] = 0
             else:
                 result[y,x] = img_a[y,x]+img_b[y,x]
-    return result 
+                
+    return result
 
 
 def remove_negative_pixels(img):
@@ -70,10 +73,10 @@ def loader(batch_size, train_path, image_folder, mask_folder, original_image_fol
         neg_e = grayscale_gt-og
         #neg_e = remove_negative_pixels(neg_e)
 
-        cv2.imwrite(os.path.join('results', str(counter) + 'img.png'), 255*img)
-        cv2.imwrite(os.path.join('results', str(counter) + 'og.png'), 255*og)
-        cv2.imwrite(os.path.join('results', str(counter) + 'grayscale_gt.png'), 255*grayscale_gt)
-        cv2.imwrite(os.path.join('results', str(counter) + 'neg_e.png'), 255*neg_e)
+        # cv2.imwrite(os.path.join('results', str(counter) + 'img.png'), 255*img)
+        # cv2.imwrite(os.path.join('results', str(counter) + 'og.png'), 255*og)
+        # cv2.imwrite(os.path.join('results', str(counter) + 'grayscale_gt.png'), 255*grayscale_gt)
+        # cv2.imwrite(os.path.join('results', str(counter) + 'neg_e.png'), 255*neg_e)
         
         neg_e = np.expand_dims(neg_e, axis=0)
         img = np.expand_dims(img, axis=0)
@@ -224,7 +227,7 @@ class myUnet(Callback):
 
         for recursion in range(no_recursions):
             ld = loader(1, data_path, pred_originals, 'GT', 'Originals')
-            model.fit_generator(ld, epochs=epochs, verbose=1, shuffle=True, steps_per_epoch=218, callbacks=[reduce_lr, early_stopping,model_checkpoint, self])
+            model.fit_generator(ld, epochs=epochs, verbose=1, shuffle=True, steps_per_epoch=2, callbacks=[reduce_lr, early_stopping,model_checkpoint, self])
 
             new_originals_folder = os.path.join(data_path, f'Originals_{recursion}')
 
@@ -368,7 +371,7 @@ class myUnet(Callback):
 
         width = dim[1] # original image size
         height = dim[0]
-        result = np.zeros([height, width, 1], dtype=np.uint8)
+        result = np.zeros([height, width, 1], dtype=np.float32)
         result.fill(255)  # or img[:] = 255
         delta_x = width // patch_size
         delta_y = height // patch_size
@@ -388,17 +391,21 @@ class myUnet(Callback):
                 part = parts[index]
                 if x == delta_x-1 and remx > 0: # right of picture (remx)
                     result[yinit:yinit+patch_size, xinit:xinit+remx] = 255 * part[border_size:border_size+patch_size, border_size:border_size+remx]
+                    print(255 * part[border_size:border_size+patch_size, border_size:border_size+remx])
                 else: # Standard case, no remx or remy problems
                     result[yinit:yinit+patch_size, xinit:xinit+patch_size] = 255 * part[border_size:border_size+patch_size, border_size:border_size+patch_size]
+                    print(255 * part[border_size:border_size+patch_size, border_size:border_size+patch_size])
                 index += 1
 
             if remy > 0 and x == delta_x-1 and remx > 0: # bottom-right of picture (remy + remx)
                 part = part = parts[index]
                 result[height-remy:height, width-remx:width] = 255 * part[border_size:border_size+remy, border_size:border_size+remx]
+                print(255 * part[border_size:border_size+remy, border_size:border_size+remx])
                 index += 1
             elif remy > 0: # bottom of picture (remy)
                 part = part = parts[index]
                 result[height-remy:height, xinit:xinit+patch_size] = 255 * part[border_size:border_size+remy, border_size:border_size+patch_size]
+                print(255 * part[border_size:border_size+remy, border_size:border_size+patch_size])
                 index += 1
         return result
 
@@ -420,12 +427,15 @@ class myUnet(Callback):
         
         # BUILD/RESTORE PREDICTED IMAGE FROM PREDICTED PARTS
         neg_e = self.restore_image(imgs_mask_test, dim)
-        cv2.imwrite(os.path.join('results', 'neg_e_predicted.png'), neg_e)
+        # cv2.imwrite(os.path.join('results', f'neg_e_predicted_{name}.png'), neg_e)
 
         x = cv2.imread(input_image, cv2.IMREAD_GRAYSCALE)
 
         neg_e = neg_e[:,:,0]
         xu = image_add(neg_e, x)
+
+        print(neg_e)
+        print(xu)
 
         # #awawdawd
         # mask = cv2.imread(os.path.join('images', 'GT', name+'.png'), cv2.IMREAD_GRAYSCALE)
