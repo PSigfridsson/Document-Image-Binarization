@@ -338,8 +338,8 @@ class myUnet(Callback):
         remx = width % patch_size
         remy = height % patch_size
 
-        print(width, patch_size, delta_x, remx)
-        print(height, patch_size, delta_y, remy)
+        #print(width, patch_size, delta_x, remx)
+        #print(height, patch_size, delta_y, remy)
 
         border_width = border_size + width + patch_size - remx + border_size
         border_height = border_size + height  + patch_size - remy + border_size
