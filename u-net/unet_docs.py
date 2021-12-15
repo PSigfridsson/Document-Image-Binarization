@@ -1,5 +1,5 @@
 from tensorflow.keras.models import *
-from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, UpSampling2D, Dropout
+from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, UpSampling2D, Dropout, BatchNormalization
 from tensorflow.keras.layers import concatenate
 from tensorflow.keras.optimizers import *
 from tensorflow.keras.callbacks import ModelCheckpoint, Callback,  EarlyStopping, ReduceLROnPlateau
