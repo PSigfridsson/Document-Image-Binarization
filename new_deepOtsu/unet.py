@@ -257,7 +257,7 @@ class myUnet(Callback):
 
         for stack in range(no_stacks):
             ld = loader(1, data_path, pred_originals, 'GT', 'Originals')
-            model.fit_generator(ld, epochs=epochs, verbose=1, shuffle=True, steps_per_epoch=218, callbacks=[reduce_lr, early_stopping, model_checkpoint, self])
+            model.fit_generator(ld, epochs=epochs, verbose=1, shuffle=True, steps_per_epoch=10000, callbacks=[reduce_lr, early_stopping, model_checkpoint, self])
 
             new_originals_folder = os.path.join(data_path, f'Originals_{stack}')
 
@@ -527,7 +527,7 @@ class myUnet(Callback):
         plt.show()
 
 
-def test_predict(u_net, model):
+def test_predict(u_net, models):
     images_path = os.path.join('images', 'Originals')
     print(images_path)
     images = os.listdir(images_path)
@@ -539,9 +539,12 @@ def test_predict(u_net, model):
         ground_truth = cv2.imread(gt_path, cv2.IMREAD_GRAYSCALE)
         current_image = os.path.join('images', 'Originals', image)
         image_read = cv2.imread(current_image, cv2.IMREAD_GRAYSCALE)
-
-        result_unet = u_net.binarise_image(model_weights=model, input_image=current_image, name=image[:-4])
-
+        for i,model in enumerate(models):
+            unet_image = u_net.binarise_image(model_weights=model, input_image=current_image, name=image[:-4])
+            current_image = os.path.join('temp_stack',image[:-4] + '_' + str(i) +'.png')
+            cv2.imwrite(current_image,unet_image)
+            
+        result_unet = unet_image
         ressult_otsu = threshold_otsu(result_unet)
         cv2.imwrite(os.path.join('results', image[:-4] + '_' + '_unet_.png'), result_unet)
         # Binarise image with Otsu
