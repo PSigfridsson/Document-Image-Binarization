@@ -31,7 +31,7 @@ def image_add(img_a, img_b):
                 result[y,x] = 0
             else:
                 result[y,x] = img_a[y,x]+img_b[y,x]
-                
+
     return result
 
 
@@ -434,8 +434,8 @@ class myUnet(Callback):
         neg_e = neg_e[:,:,0]
         xu = image_add(neg_e, x)
 
-        print(neg_e)
-        print(xu)
+        #print(neg_e)
+        #print(xu)
 
         # #awawdawd
         # mask = cv2.imread(os.path.join('images', 'GT', name+'.png'), cv2.IMREAD_GRAYSCALE)
