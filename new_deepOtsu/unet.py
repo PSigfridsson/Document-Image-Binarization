@@ -223,7 +223,7 @@ class myUnet(Callback):
             model.fit_generator(ld, epochs=epochs, verbose=1, shuffle=True, steps_per_epoch=steps_per_epoch, 
                                 callbacks=[reduce_lr, early_stopping, model_checkpoint, self])
         else:
-            self.stacked_refinement(model, data_path, epochs, no_stacks, reduce_lr, early_stopping, model_checkpoint, models_path, steps_per_epoch, batch_size)
+            self.stacked_refinement(model, data_path, epochs, no_stacks, reduce_lr, early_stopping, model_checkpoint, models_path, steps_per_epoch, batch_size,factor, patience, min_lr)
             #self.recursive_refinement(model, data_path, epochs, no_stacks, reduce_lr, early_stopping, model_checkpoint)
 
     def recursive_refinement(self, model, data_path, epochs, no_recursions, reduce_lr, early_stopping, model_checkpoint, steps_per_epoch, batch_size):
@@ -255,7 +255,7 @@ class myUnet(Callback):
             reduce_lr = ReduceLROnPlateau(factor=0.1, patience=5, min_lr=0.00001, verbose=1, monitor='loss')
             pred_originals = f'Originals_{recursion}'
 
-    def stacked_refinement(self, model, data_paths, epochs, no_stacks, reduce_lr, early_stopping, model_checkpoint, models_path, steps_per_epoch, batch_size):
+    def stacked_refinement(self, model, data_paths, epochs, no_stacks, reduce_lr, early_stopping, model_checkpoint, models_path, steps_per_epoch, batch_size,factor, patience, min_lr):
         pred_originals = 'Originals'
 
         for stack in range(no_stacks):
@@ -305,10 +305,10 @@ class myUnet(Callback):
 
             model = self.get_unet()
             checkpoint_file = os.path.join(models_path, f'stacked_refinement_iteration_{stack}.hdf5')
-            # TODO add patience variables etc.
+
             model_checkpoint = ModelCheckpoint(checkpoint_file, monitor='loss', verbose=1, save_best_only=True)
-            early_stopping = EarlyStopping(patience=20, verbose=1, monitor='loss')
-            reduce_lr = ReduceLROnPlateau(factor=0.1, patience=5, min_lr=0.00001, verbose=1, monitor='loss')
+            early_stopping = EarlyStopping(patience=patience, verbose=1, monitor='loss')
+            reduce_lr = ReduceLROnPlateau(factor=factor, patience=patience, min_lr=min_lr, verbose=1, monitor='loss')
             pred_originals = f'Originals_{stack}'
 
     def prepare_image_predict_original(self, input_image):
