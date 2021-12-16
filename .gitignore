@@ -2,3 +2,5 @@ destination
 slurm*
 dcm*
 u-net/model/unet*
+*.png
+*.pyc

@@ -3,6 +3,7 @@ from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, UpSampling2D, D
 from tensorflow.keras.layers import concatenate
 from tensorflow.keras.optimizers import *
 from tensorflow.keras.callbacks import ModelCheckpoint, Callback,  EarlyStopping, ReduceLROnPlateau
+from tensorflow.keras.backend import sigmoid
 import numpy as np
 from matplotlib import pyplot as plt
 from os import makedirs
@@ -19,16 +20,20 @@ import shutil
 USE_GPU = True
 IMG_MODEL_SIZE = 128
 
+
 def image_add(img_a, img_b):
-    result = img_a+img_b #memes
+    result = np.zeros([img_a.shape[0], img_a.shape[1]], dtype=np.uint8)
 
     for y, row in enumerate(img_a):
         for x, pixel in enumerate(row):
             if int(img_a[y,x])+int(img_b[y,x]) > 255:
                 result[y,x] = 255
+            elif int(img_a[y,x])+int(img_b[y,x]) < 0:
+                result[y,x] = 0
             else:
                 result[y,x] = img_a[y,x]+img_b[y,x]
-    return result 
+
+    return result
 
 
 def remove_negative_pixels(img):
@@ -40,7 +45,7 @@ def remove_negative_pixels(img):
 
 
 
-def loader(batch_size, train_path, image_folder, mask_folder, mask_color_mode="grayscale", target_size=(128, 128), save_to_dir=None):
+def loader(batch_size, train_path, image_folder, mask_folder, original_image_folder, mask_color_mode="grayscale", target_size=(128, 128), save_to_dir=None):
     image_datagen = ImageDataGenerator(rescale=1. / 255)
     mask_datagen = ImageDataGenerator(rescale=1. / 255)
 
@@ -51,21 +56,32 @@ def loader(batch_size, train_path, image_folder, mask_folder, mask_color_mode="g
     mask_generator = mask_datagen.flow_from_directory(train_path, classes=[mask_folder], class_mode=None,
                                                       color_mode=mask_color_mode, target_size=target_size,
                                                       batch_size=batch_size, save_to_dir=save_to_dir, seed=1)
-    train_generator = zip(image_generator, mask_generator)
 
-    for (img, mask) in train_generator:
+    original_image_generator = image_datagen.flow_from_directory(train_path, classes=[original_image_folder], class_mode=None,
+                                                        color_mode=mask_color_mode, target_size=target_size,
+                                                        batch_size=batch_size, save_to_dir=save_to_dir, seed=1)
+    train_generator = zip(image_generator, mask_generator, original_image_generator)
+    counter = 0
+    for (img, mask, og) in train_generator:
+        # allowed neg_e to be negative??
         mask = mask[0,:,:,:]
         mask = ((mask > 0.5)).astype(np.uint8)
         img = img[0,:,:,:]
+        og = og[0,:,:,:]
 
-        grayscale_gt = gt_construction.generate_grayscale_gt(img, mask)
+        grayscale_gt = gt_construction.generate_grayscale_gt(og, mask)
 
         neg_e = grayscale_gt-img
-        neg_e = remove_negative_pixels(neg_e)
+        #neg_e = remove_negative_pixels(neg_e)
 
+        # cv2.imwrite(os.path.join('results', str(counter) + 'img.png'), 255*img)
+        # cv2.imwrite(os.path.join('results', str(counter) + 'og.png'), 255*og)
+        # cv2.imwrite(os.path.join('results', str(counter) + 'grayscale_gt.png'), 255*grayscale_gt)
+        # cv2.imwrite(os.path.join('results', str(counter) + 'neg_e.png'), 255*neg_e)
+        
         neg_e = np.expand_dims(neg_e, axis=0)
         img = np.expand_dims(img, axis=0)
-
+        counter += 1
         yield (img, neg_e)
 
 def check_gpu():
@@ -78,6 +94,9 @@ def check_gpu():
     else:
         os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 
+
+def custom_activation(x):
+    return (sigmoid(x) * 2) - 1
 
 class myUnet(Callback):
 
@@ -92,95 +111,94 @@ class myUnet(Callback):
         print('--- on_epoch_end ---')
         #self.save_epoch_results()
 
-
     def get_unet(self):
 
         inputs = Input((self.img_rows, self.img_cols, 1))
 
-        conv1 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(inputs)
+        conv1 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='glorot_uniform')(inputs)
         conv1 = BatchNormalization()(conv1)
         print("conv1 shape:", conv1.shape)
-        conv1 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv1)
+        conv1 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='glorot_uniform')(conv1)
         conv1 = BatchNormalization()(conv1)
         print("conv1 shape:", conv1.shape)
         pool1 = MaxPooling2D(pool_size=(2, 2))(conv1)
         print("pool1 shape:", pool1.shape)
 
-        conv2 = Conv2D(128, 3, activation='relu', padding='same', kernel_initializer='he_normal')(pool1)
+        conv2 = Conv2D(128, 3, activation='relu', padding='same', kernel_initializer='glorot_uniform')(pool1)
         conv2 = BatchNormalization()(conv2)
         print("conv2 shape:", conv2.shape)
-        conv2 = Conv2D(128, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv2)
+        conv2 = Conv2D(128, 3, activation='relu', padding='same', kernel_initializer='glorot_uniform')(conv2)
         conv2 = BatchNormalization()(conv2)
         print("conv2 shape:", conv2.shape)
         pool2 = MaxPooling2D(pool_size=(2, 2))(conv2)
         print("pool2 shape:", pool2.shape)
 
-        conv3 = Conv2D(IMG_MODEL_SIZE, 3, activation='relu', padding='same', kernel_initializer='he_normal')(pool2)
+        conv3 = Conv2D(IMG_MODEL_SIZE, 3, activation='relu', padding='same', kernel_initializer='glorot_uniform')(pool2)
         conv3 = BatchNormalization()(conv3)
         print("conv3 shape:", conv3.shape)
-        conv3 = Conv2D(IMG_MODEL_SIZE, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv3)
+        conv3 = Conv2D(IMG_MODEL_SIZE, 3, activation='relu', padding='same', kernel_initializer='glorot_uniform')(conv3)
         conv3 = BatchNormalization()(conv3)
         print("conv3 shape:", conv3.shape)
         pool3 = MaxPooling2D(pool_size=(2, 2))(conv3)
         print("pool3 shape:", pool3.shape)
 
-        conv4 = Conv2D(512, 3, activation='relu', padding='same', kernel_initializer='he_normal')(pool3)
+        conv4 = Conv2D(512, 3, activation='relu', padding='same', kernel_initializer='glorot_uniform')(pool3)
         conv4 = BatchNormalization()(conv4)
-        conv4 = Conv2D(512, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv4)
+        conv4 = Conv2D(512, 3, activation='relu', padding='same', kernel_initializer='glorot_uniform')(conv4)
         conv4 = BatchNormalization()(conv4)
         drop4 = Dropout(0.5)(conv4)
         pool4 = MaxPooling2D(pool_size=(2, 2))(drop4)
 
-        conv5 = Conv2D(1024, 3, activation='relu', padding='same', kernel_initializer='he_normal')(pool4)
+        conv5 = Conv2D(1024, 3, activation='relu', padding='same', kernel_initializer='glorot_uniform')(pool4)
         conv5 = BatchNormalization()(conv5)
-        conv5 = Conv2D(1024, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv5)
+        conv5 = Conv2D(1024, 3, activation='relu', padding='same', kernel_initializer='glorot_uniform')(conv5)
         conv5 = BatchNormalization()(conv5)
         drop5 = Dropout(0.5)(conv5)
 
-        up6 = Conv2D(512, 2, activation='relu', padding='same', kernel_initializer='he_normal')(
+        up6 = Conv2D(512, 2, activation='relu', padding='same', kernel_initializer='glorot_uniform')(
             UpSampling2D(size=(2, 2))(drop5))
         print('up6 ' + str(up6))
         print('drop4 ' + str(drop4))
         # merge6 = merge([drop4, up6], mode = 'concat', concat_axis = 3)
         merge6 = concatenate([drop4, up6], axis=3)
 
-        conv6 = Conv2D(512, 3, activation='relu', padding='same', kernel_initializer='he_normal')(merge6)
+        conv6 = Conv2D(512, 3, activation='relu', padding='same', kernel_initializer='glorot_uniform')(merge6)
         conv6 = BatchNormalization()(conv6)
-        conv6 = Conv2D(512, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv6)
+        conv6 = Conv2D(512, 3, activation='relu', padding='same', kernel_initializer='glorot_uniform')(conv6)
         conv6 = BatchNormalization()(conv6)
 
-        up7 = Conv2D(IMG_MODEL_SIZE, 2, activation='relu', padding='same', kernel_initializer='he_normal')(
+        up7 = Conv2D(IMG_MODEL_SIZE, 2, activation='relu', padding='same', kernel_initializer='glorot_uniform')(
             UpSampling2D(size=(2, 2))(conv6))
         # merge7 = merge([conv3,up7], mode = 'concat', concat_axis = 3)
         merge7 = concatenate([conv3, up7], axis=3)
 
-        conv7 = Conv2D(IMG_MODEL_SIZE, 3, activation='relu', padding='same', kernel_initializer='he_normal')(merge7)
+        conv7 = Conv2D(IMG_MODEL_SIZE, 3, activation='relu', padding='same', kernel_initializer='glorot_uniform')(merge7)
         conv7 = BatchNormalization()(conv7)
-        conv7 = Conv2D(IMG_MODEL_SIZE, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv7)
+        conv7 = Conv2D(IMG_MODEL_SIZE, 3, activation='relu', padding='same', kernel_initializer='glorot_uniform')(conv7)
         conv7 = BatchNormalization()(conv7)
 
-        up8 = Conv2D(128, 2, activation='relu', padding='same', kernel_initializer='he_normal')(
+        up8 = Conv2D(128, 2, activation='relu', padding='same', kernel_initializer='glorot_uniform')(
             UpSampling2D(size=(2, 2))(conv7))
         # merge8 = merge([conv2,up8], mode = 'concat', concat_axis = 3)
         merge8 = concatenate([conv2, up8], axis=3)
 
-        conv8 = Conv2D(128, 3, activation='relu', padding='same', kernel_initializer='he_normal')(merge8)
+        conv8 = Conv2D(128, 3, activation='relu', padding='same', kernel_initializer='glorot_uniform')(merge8)
         conv8 = BatchNormalization()(conv8)
-        conv8 = Conv2D(128, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv8)
+        conv8 = Conv2D(128, 3, activation='relu', padding='same', kernel_initializer='glorot_uniform')(conv8)
         conv8 = BatchNormalization()(conv8)
 
-        up9 = Conv2D(64, 2, activation='relu', padding='same', kernel_initializer='he_normal')(
+        up9 = Conv2D(64, 2, activation='relu', padding='same', kernel_initializer='glorot_uniform')(
             UpSampling2D(size=(2, 2))(conv8))
         # merge9 = merge([conv1,up9], mode = 'concat', concat_axis = 3)
         merge9 = concatenate([conv1, up9], axis=3)
 
-        conv9 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(merge9)
+        conv9 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='glorot_uniform')(merge9)
         conv9 = BatchNormalization()(conv9)
-        conv9 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv9)
+        conv9 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='glorot_uniform')(conv9)
         conv9 = BatchNormalization()(conv9)
-        conv9 = Conv2D(2, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv9)
+        conv9 = Conv2D(2, 3, activation='relu', padding='same', kernel_initializer='glorot_uniform')(conv9)
         conv9 = BatchNormalization()(conv9)
-        conv10 = Conv2D(1, 1, activation='sigmoid')(conv9)
+        conv10 = Conv2D(1, 1, activation=custom_activation)(conv9)
 
         model = Model(inputs, conv10)
         # model = Model()
@@ -190,104 +208,200 @@ class myUnet(Callback):
         return model
 
 
-    def train(self, data_path, checkpoint_file, epochs=5, iteration=0, model_stacks=0):
+    def train(self, data_path, checkpoint_file, models_path, epochs=50, factor=0.1, patience=5, 
+                min_lr=0.00001, steps_per_epoch=232, batch_size=1, no_stacks=1):
         model = self.get_unet()
         print("got unet")
 
         model_checkpoint = ModelCheckpoint(checkpoint_file, monitor='loss', verbose=1, save_best_only=True)
-        early_stopping = EarlyStopping(patience=20, verbose=1, monitor='loss')
-        reduce_lr = ReduceLROnPlateau(factor=0.1, patience=5, min_lr=0.00001, verbose=1, monitor='loss')
+        early_stopping = EarlyStopping(patience=patience, verbose=1, monitor='loss')
+        reduce_lr = ReduceLROnPlateau(factor=factor, patience=patience, min_lr=min_lr, verbose=1, monitor='loss')
+
         print('Fitting model...')
-
-        if iteration == 0:
-            org_folder = 'Originals';
+        if no_stacks == 1:
+            ld = loader(batch_size, data_path, 'Originals', 'GT', 'Originals')
+            model.fit_generator(ld, epochs=epochs, verbose=1, shuffle=True, steps_per_epoch=steps_per_epoch, 
+                                callbacks=[reduce_lr, early_stopping, model_checkpoint, self])
         else:
-            org_folder = f'Originals_{iteration}';
+            self.stacked_refinement(model, data_path, epochs, no_stacks, reduce_lr, early_stopping, model_checkpoint, models_path, steps_per_epoch, batch_size,factor, patience, min_lr)
+            #self.recursive_refinement(model, data_path, epochs, no_stacks, reduce_lr, early_stopping, model_checkpoint)
 
-        ld = loader(1, data_path, org_folder, 'GT')
+    def recursive_refinement(self, model, data_path, epochs, no_recursions, reduce_lr, early_stopping, model_checkpoint, steps_per_epoch, batch_size):
+        pred_originals = 'Originals'
 
-        model.fit_generator(ld, epochs=epochs, verbose=1, shuffle=True, steps_per_epoch=218, callbacks=[reduce_lr, early_stopping,model_checkpoint, self])
-        #pd.DataFrame(history.history).plot(figsize=(8, 5))
+        for recursion in range(no_recursions):
+            ld = loader(batch_size, data_path, pred_originals, 'GT', 'Originals')
+            model.fit_generator(ld, epochs=epochs, verbose=1, shuffle=True, steps_per_epoch=steps_per_epoch, callbacks=[reduce_lr, early_stopping, model_checkpoint, self])
 
-        if iteration + 1 < model_stacks:
-            self.create_next_iteration_images(data_path, org_folder, iteration, model)
-        else:
-            if org_folder != 'Originals':
-                shutil.rmtree(os.path.join(data_path, org_folder))
-            
-    def create_next_iteration_images(self, data_path, org_folder, iteration, model):
-        # Create input images to next iteration
-        model_weights = os.path.join('stacked_refinement_models', f'unet_SR_{iteration}.hdf5')
-        new_originals_folder = os.path.join(data_path, f'Originals_{iteration+1}')
+            new_originals_folder = os.path.join(data_path, f'Originals_{recursion}')
 
-        try:
-            os.mkdir(new_originals_folder)
-        except Exception as e:
-            print(f"Folder '{new_originals_folder}'already exists - Removing it's content")
+            try:
+                os.mkdir(new_originals_folder)
+            except Exception as e:
+                print(f"Folder '{new_originals_folder}' already exists!")
 
-            for file in os.listdir(new_originals_folder):
-                os.remove(os.path.join(new_originals_folder, file))
+                for file in os.listdir(new_originals_folder):
+                    os.remove(os.path.join(new_originals_folder, file))
 
-        images_path = os.path.join(data_path, org_folder)
-        images = os.listdir(images_path)
+            images_path = os.path.join(data_path, pred_originals)
+            for image in os.listdir(images_path):
+                image_path = os.path.join(images_path, image)
+                xu = self.binarise_image(input_image=image_path, name=image[:-4], model=model)
 
-        for image in images:
-            current_image = os.path.join(images_path, image)
-            result_unet = self.predict_and_restore(input_image=current_image, name=image[:-4], model=model, model_weights=model_weights)
-            new_image_path = os.path.join(new_originals_folder, image)
-            print(result_unet)
-            cv2.imwrite(new_image_path, result_unet)
+                new_image_path = os.path.join(new_originals_folder, image)
+                cv2.imwrite(new_image_path, xu)
 
-        if org_folder != 'Originals':
-            shutil.rmtree(images_path)
+            early_stopping = EarlyStopping(patience=20, verbose=1, monitor='loss')
+            reduce_lr = ReduceLROnPlateau(factor=0.1, patience=5, min_lr=0.00001, verbose=1, monitor='loss')
+            pred_originals = f'Originals_{recursion}'
+
+    def stacked_refinement(self, model, data_paths, epochs, no_stacks, reduce_lr, early_stopping, model_checkpoint, models_path, steps_per_epoch, batch_size,factor, patience, min_lr):
+        pred_originals = 'Originals'
+
+        for stack in range(no_stacks):
+            for data_path in data_paths:
+                shutil.unpack_archive(data_path + '.zip', data_path)
+                name = os.path.split(data_path)[1]
+                outer_path = data_path
+                data_path = os.path.join(data_path, name)
+
+                ld = loader(batch_size, data_path, pred_originals, 'GT', 'Originals')
+                model.fit_generator(ld, epochs=epochs, verbose=1, shuffle=True, steps_per_epoch=steps_per_epoch, callbacks=[reduce_lr, early_stopping, model_checkpoint, self])
+                # remove unzipped to save storage
+                try:
+                    shutil.rmtree(outer_path)
+                except OSError as e:
+                    print("(0) Error: %s - %s." % (e.filename, e.strerror))
+
+            for data_path in data_paths:
+                shutil.unpack_archive(data_path + '.zip', data_path)
+                name = os.path.split(data_path)[1]
+                outer_path = data_path
+                data_path = os.path.join(data_path, name)
+
+                new_originals_folder = os.path.join(data_path, f'Originals_{stack}')
+                images_path = os.path.join(data_path, pred_originals)
+                if stack != no_stacks-1:
+                    try:
+                        os.mkdir(new_originals_folder)
+                    except Exception as e:
+                        print(f"Folder '{new_originals_folder}' already exists!")
+                        for file in os.listdir(new_originals_folder):
+                            os.remove(os.path.join(new_originals_folder, file))
+    
+                    for image in os.listdir(images_path):
+                        image_path = os.path.join(images_path, image)
+                        xu = self.binarise_image(input_image=image_path, name=image[:-4], model=model)
+
+                        new_image_path = os.path.join(new_originals_folder, image)
+                        cv2.imwrite(new_image_path, xu)
+                
+                if stack > 0:
+                    try:
+                        shutil.rmtree(images_path)
+                    except OSError as e:
+                        print("(2) Error: %s - %s." % (e.filename, e.strerror))
+
+                shutil.make_archive(outer_path, 'zip', outer_path)
+
+                try:
+                    shutil.rmtree(outer_path)
+                except OSError as e:
+                    print("(1) Error: %s - %s." % (e.filename, e.strerror))
+
+            model = self.get_unet()
+            checkpoint_file = os.path.join(models_path, f'stacked_refinement_iteration_{stack}.hdf5')
+
+            model_checkpoint = ModelCheckpoint(checkpoint_file, monitor='loss', verbose=1, save_best_only=True)
+            early_stopping = EarlyStopping(patience=patience, verbose=1, monitor='loss')
+            reduce_lr = ReduceLROnPlateau(factor=factor, patience=patience, min_lr=min_lr, verbose=1, monitor='loss')
+            pred_originals = f'Originals_{stack}'
+
+    def prepare_image_predict_original(self, input_image):
+        img = cv2.imread(input_image, cv2.IMREAD_GRAYSCALE)
+        print(img.shape)
+        width = img.shape[1]
+        height = img.shape[0]
+        delta_x = width // IMG_MODEL_SIZE
+        delta_y = height // IMG_MODEL_SIZE
+        remx = width % IMG_MODEL_SIZE
+        remy = height % IMG_MODEL_SIZE
+        print('remy', remy)
+        parts = []
+        border = np.zeros([IMG_MODEL_SIZE, IMG_MODEL_SIZE], dtype=np.uint8)
+        border.fill(255)  # or img[:] = 255
+
+        for x in range(delta_x):
+            xinit = x * IMG_MODEL_SIZE
+            for y in range(delta_y):
+                yinit = y * IMG_MODEL_SIZE
+                part = img[yinit:yinit + IMG_MODEL_SIZE, xinit:xinit+IMG_MODEL_SIZE]
+                parts.append(part.astype('float32') / 255)
+            if remy > 0:
+                border.fill(255)
+                border[:remy, :] = img[height-remy:height, xinit:xinit+IMG_MODEL_SIZE]
+                parts.append(border.astype('float32') / 255)
+
+        if remx > 0:
+            xinit = width - remx
+            for y in range(delta_y):
+                yinit = y * IMG_MODEL_SIZE
+                border.fill(255)
+                border[:, :remx] = img[yinit:yinit + IMG_MODEL_SIZE, xinit:width]
+                parts.append(border.astype('float32') / 255)
+            if remy > 0:
+                border.fill(255)
+                border[:remy, :remx] = img[height-remy:height, xinit:width]
+                parts.append(border.astype('float32') / 255)
+
+        return np.asarray(parts), (img.shape[0], img.shape[1])
+
+    def prepare_image_predict(self, input_image):
+        original_model_size = IMG_MODEL_SIZE
+        downsampling_layer = 4
+        border_size = 2**downsampling_layer
+        patch_size = IMG_MODEL_SIZE - 2*border_size
+
+        img = cv2.imread(input_image, cv2.IMREAD_GRAYSCALE)
+        print(img.shape)
+        width = img.shape[1]
+        height = img.shape[0]
+        delta_x = width // patch_size
+        delta_y = height // patch_size
+        remx = width % patch_size
+        remy = height % patch_size
+
+        #print(width, patch_size, delta_x, remx)
+        #print(height, patch_size, delta_y, remy)
+
+        border_width = border_size + width + patch_size - remx + border_size
+        border_height = border_size + height  + patch_size - remy + border_size
+
+        parts = []
+        border = np.zeros([border_height, border_width], dtype=np.uint8)
+        border.fill(255)  # or img[:] = 255
+
+        border[border_size:height+border_size, border_size:width+border_size] = img
+        #cv2.imwrite(os.path.join('results', 'img.png'), img)
+        #cv2.imwrite(os.path.join('results', 'border.png'), border)
+
+        if remx > 0:
+            delta_x += 1
+        if remy > 0:
+            delta_y += 1
+
+        for x in range(delta_x):
+            xinit = x * patch_size
+            for y in range(delta_y):
+                yinit = y * patch_size
+                #print("ystart: " + str(yinit) + ", yend: " + str(yinit+original_model_size) + ", imgstart: " + str(yinit+border_size) + ", imgend: " + str(yinit+original_model_size-border_size))
+                part = border[yinit:yinit + original_model_size, xinit:xinit+original_model_size]
+                parts.append(part.astype('float32') / 255)
+
+        return np.asarray(parts), (img.shape[0], img.shape[1])
 
 
-    def prepare_image_predict(self, input_image, input_image_is_path=True):
-       if input_image_is_path:
-           img = cv2.imread(input_image, cv2.IMREAD_GRAYSCALE)
-       else:
-           img = input_image
-
-       padding = 16
-       IMG_MODEL_SIZE = 96
-       print(img.shape)
-       width = img.shape[1]
-       height = img.shape[0]
-       delta_x = width // IMG_MODEL_SIZE
-       delta_y = height // IMG_MODEL_SIZE
-       remx = width % IMG_MODEL_SIZE
-       remy = height % IMG_MODEL_SIZE
-       print('remy', remy)
-       parts = []
-       
-       border_width = width + padding + IMG_MODEL_SIZE - remx + padding
-       border_height = height + padding + IMG_MODEL_SIZE - remy + padding
-       
-       border = np.zeros([border_height, border_width], dtype=np.uint8)
-       border.fill(255)  # or img[:] = 255
-       border[padding:padding+height,padding:padding+width] = img
-       cv2.imwrite(os.path.join('..', 'testimages', 'border.png'), border)
-       if remx > 0:
-           delta_x = delta_x + 1
-       if remy > 0:
-           delta_y = delta_y + 1
-       for x in range(delta_x):
-           xinit = x * IMG_MODEL_SIZE
-           for y in range(delta_y):
-               yinit = y * IMG_MODEL_SIZE
-               part = border[yinit:yinit + 128,xinit:xinit +128]
-               parts.append(part.astype('float32'))
-               
-       #for i,part in enumerate(parts):
-           #cv2.imwrite(os.path.join('..', 'testimages', str(i) +'.png'), part)
-           
-       return np.asarray(parts), (img.shape[0], img.shape[1])
-
-
-
-    def restore_image(self, parts, dim):
-        padding = 16
-        IMG_MODEL_SIZE = 96
+    def restore_image_original(self, parts, dim):
         width = dim[1]
         height = dim[0]
         result = np.zeros([height, width, 1], dtype=np.uint8)
@@ -297,44 +411,89 @@ class myUnet(Callback):
         remx = width % IMG_MODEL_SIZE
         remy = height % IMG_MODEL_SIZE
         index = 0
-        border_width = width + padding + IMG_MODEL_SIZE - remx + padding
-        border_height = height + padding + IMG_MODEL_SIZE - remy + padding
-       
-        border = np.zeros([border_height, border_width, 1], dtype=np.uint8)
-        border.fill(0)  # or img[:] = 255
-        if remx > 0:
-           delta_x = delta_x + 1
-        if remy > 0:
-           delta_y = delta_y + 1
         for x in range(delta_x):
             xinit = x * IMG_MODEL_SIZE
             for y in range(delta_y):
                 yinit = y * IMG_MODEL_SIZE
-                #cv2.imwrite(os.path.join('..', 'testimages', str(index) +'_read.png'), parts[index]*255)
-                border[yinit:yinit + IMG_MODEL_SIZE,xinit:xinit + IMG_MODEL_SIZE] = parts[index][padding:IMG_MODEL_SIZE + padding,padding:IMG_MODEL_SIZE + padding] * 255
+                result[yinit:yinit+IMG_MODEL_SIZE, xinit:xinit+IMG_MODEL_SIZE] = parts[index] * 255
                 index += 1
-            
-        result = border[:height,:width]
+            if remy > 0:
+                result[height-remy:, xinit:xinit+IMG_MODEL_SIZE] = parts[index][:remy, :] * 255
+                index += 1
+        if remx > 0:
+            xinit = width - remx
+            for y in range(delta_y):
+                yinit = y * IMG_MODEL_SIZE
+                result[yinit:yinit+IMG_MODEL_SIZE, xinit:] = parts[index][:, :remx] * 255
+                index += 1
+            if remy > 0:
+                result[height-remy:, xinit:xinit+IMG_MODEL_SIZE] = parts[index][:remy, :remx] * 255
+
+        return result
+
+    def restore_image(self, parts, dim):
+        original_model_size = IMG_MODEL_SIZE
+        downsampling_layer = 4
+        border_size = 2**downsampling_layer
+        patch_size = IMG_MODEL_SIZE - 2*border_size
+
+        width = dim[1] # original image size
+        height = dim[0]
+        result = np.zeros([height, width, 1], dtype=np.float32)
+        result.fill(255)  # or img[:] = 255
+        delta_x = width // patch_size
+        delta_y = height // patch_size
+        remx = width % patch_size
+        remy = height % patch_size
+        index = 0
+
+        #print(width, delta_x, remx)
+        #print(height, delta_y, remy)
+        if remx > 0:
+            delta_x += 1
+
+        for x in range(delta_x):
+            xinit = x * patch_size
+            for y in range(delta_y):
+                yinit = y * patch_size
+                part = parts[index]
+                if x == delta_x-1 and remx > 0: # right of picture (remx)
+                    result[yinit:yinit+patch_size, xinit:xinit+remx] = 255 * part[border_size:border_size+patch_size, border_size:border_size+remx]
+                    #print(255 * part[border_size:border_size+patch_size, border_size:border_size+remx])
+                else: # Standard case, no remx or remy problems
+                    result[yinit:yinit+patch_size, xinit:xinit+patch_size] = 255 * part[border_size:border_size+patch_size, border_size:border_size+patch_size]
+                    #print(255 * part[border_size:border_size+patch_size, border_size:border_size+patch_size])
+                index += 1
+
+            if remy > 0 and x == delta_x-1 and remx > 0: # bottom-right of picture (remy + remx)
+                part = part = parts[index]
+                result[height-remy:height, width-remx:width] = 255 * part[border_size:border_size+remy, border_size:border_size+remx]
+                #print(255 * part[border_size:border_size+remy, border_size:border_size+remx])
+                index += 1
+            elif remy > 0: # bottom of picture (remy)
+                part = part = parts[index]
+                result[height-remy:height, xinit:xinit+patch_size] = 255 * part[border_size:border_size+remy, border_size:border_size+patch_size]
+                #print(255 * part[border_size:border_size+remy, border_size:border_size+patch_size])
+                index += 1
         return result
 
 
-    def predict_and_restore(self,input_image, name, input_image_is_path=True, model = None, model_weights = None):
+    def binarise_image(self, input_image, name, model_weights=None, model=None):
         print("loading image")
-        parts, dim = self.prepare_image_predict(input_image=input_image, input_image_is_path=input_image_is_path)
-        #if model is None:            
-        print("loading model")
-        model = self.get_unet()
-        model.load_weights(model_weights)
+        parts, dim = self.prepare_image_predict(input_image=input_image)
+
+        if model_weights is not None:
+            model = self.get_unet()
+            model.load_weights(model_weights)
 
         print('predicting test data')
         imgs_mask_test = model.predict(parts, batch_size=1, verbose=1)
-
+        
+        # BUILD/RESTORE PREDICTED IMAGE FROM PREDICTED PARTS
         neg_e = self.restore_image(imgs_mask_test, dim)
+        cv2.imwrite(os.path.join('results', f'neg_e_predicted_{name}.png'), neg_e)
 
-        if input_image_is_path:
-            x = cv2.imread(input_image, cv2.IMREAD_GRAYSCALE)
-        else:
-            x = input_image
+        x = cv2.imread(input_image, cv2.IMREAD_GRAYSCALE)
 
         neg_e = neg_e[:,:,0]
         xu = image_add(neg_e, x)
@@ -379,7 +538,7 @@ class myUnet(Callback):
         plt.show()
 
 
-def test_predict(u_net, model_stacks):
+def test_predict(u_net, models):
     images_path = os.path.join('images', 'Originals')
     print(images_path)
     images = os.listdir(images_path)
@@ -391,13 +550,12 @@ def test_predict(u_net, model_stacks):
         ground_truth = cv2.imread(gt_path, cv2.IMREAD_GRAYSCALE)
         current_image = os.path.join('images', 'Originals', image)
         image_read = cv2.imread(current_image, cv2.IMREAD_GRAYSCALE)
-
-        unet_input = image_read
-        for iteration in range(model_stacks):
-            model = os.path.join('stacked_refinement_models', f'unet_SR_{iteration}.hdf5')
-            result_unet = u_net.predict_and_restore(model_weights=model, input_image=unet_input, name=image[:-4], input_image_is_path=False)
-            unet_input = result_unet
-
+        for i,model in enumerate(models):
+            unet_image = u_net.binarise_image(model_weights=model, input_image=current_image, name=image[:-4])
+            current_image = os.path.join('temp_stack',image[:-4] + '_' + str(i) +'.png')
+            cv2.imwrite(current_image,unet_image)
+            
+        result_unet = unet_image
         ressult_otsu = threshold_otsu(result_unet)
         cv2.imwrite(os.path.join('results', image[:-4] + '_' + '_unet_.png'), result_unet)
         # Binarise image with Otsu
@@ -410,8 +568,18 @@ def test_predict(u_net, model_stacks):
         result_niblack = threshold_niblack(image_read, window_size=window_size, k=0.8)
         result_niblack = ((image_read > result_niblack) * 255).astype(np.uint8)
 
+        #print(result_unet.shape)
+        #print("------")
+        #print(result_niblack.shape)
+        #exit()
+
+
         # FIX ground_truth and output from unet to be binarized (0 or 255)
         ground_truth = ((ground_truth > 128) * 255).astype(np.uint8)
+        #result_unet = result_unet[:,:,0]
+        #result_unet = ((result_unet > 128) * 255).astype(np.uint8)
+        #for pixel in result_unet:
+        #    print(pixel)
 
         img_true = np.array(ground_truth).ravel()
         img_pred = np.array(result_niblack).ravel()
