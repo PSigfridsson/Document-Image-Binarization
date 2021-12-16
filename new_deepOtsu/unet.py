@@ -310,7 +310,7 @@ class myUnet(Callback):
                     print("(1) Error: %s - %s." % (e.filename, e.strerror))
 
             model = self.get_unet()
-            checkpoint_file = os.path.join(models_path, f'stacked_refinement_iteration_{stack}.hdf5')
+            checkpoint_file = os.path.join(models_path, f'stacked_refinement_iteration_{stack+1}.hdf5')
 
             model_checkpoint = ModelCheckpoint(checkpoint_file, monitor='loss', verbose=1, save_best_only=True)
             early_stopping = EarlyStopping(patience=patience, verbose=1, monitor='loss')
