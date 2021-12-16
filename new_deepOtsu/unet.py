@@ -261,16 +261,24 @@ class myUnet(Callback):
         for stack in range(no_stacks):
             for data_path in data_paths:
                 shutil.unpack_archive(data_path + '.zip', data_path)
+                name = os.path.split(data_path)[1]
+                outer_path = data_path
+                data_path = os.path.join(data_path, name)
+
                 ld = loader(batch_size, data_path, pred_originals, 'GT', 'Originals')
                 model.fit_generator(ld, epochs=epochs, verbose=1, shuffle=True, steps_per_epoch=steps_per_epoch, callbacks=[reduce_lr, early_stopping, model_checkpoint, self])
                 # remove unzipped to save storage
                 try:
-                    shutil.rmtree(data_path)
+                    shutil.rmtree(outer_path)
                 except OSError as e:
                     print("(0) Error: %s - %s." % (e.filename, e.strerror))
 
             for data_path in data_paths:
                 shutil.unpack_archive(data_path + '.zip', data_path)
+                name = os.path.split(data_path)[1]
+                outer_path = data_path
+                data_path = os.path.join(data_path, name)
+
                 new_originals_folder = os.path.join(data_path, f'Originals_{stack}')
                 images_path = os.path.join(data_path, pred_originals)
                 if stack != no_stacks-1:
@@ -278,11 +286,9 @@ class myUnet(Callback):
                         os.mkdir(new_originals_folder)
                     except Exception as e:
                         print(f"Folder '{new_originals_folder}' already exists!")
-
                         for file in os.listdir(new_originals_folder):
                             os.remove(os.path.join(new_originals_folder, file))
     
-                    print(f"IN DATA PATH {data_path}, IMAGES PATH {images_path}")
                     for image in os.listdir(images_path):
                         image_path = os.path.join(images_path, image)
                         xu = self.binarise_image(input_image=image_path, name=image[:-4], model=model)
@@ -296,10 +302,10 @@ class myUnet(Callback):
                     except OSError as e:
                         print("(2) Error: %s - %s." % (e.filename, e.strerror))
 
-                shutil.make_archive(data_path, 'zip', data_path)
+                shutil.make_archive(outer_path, 'zip', outer_path)
 
                 try:
-                    shutil.rmtree(data_path)
+                    shutil.rmtree(outer_path)
                 except OSError as e:
                     print("(1) Error: %s - %s." % (e.filename, e.strerror))
 
