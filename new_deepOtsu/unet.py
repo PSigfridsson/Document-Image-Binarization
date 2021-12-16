@@ -15,6 +15,7 @@ from tensorflow.keras.preprocessing.image import ImageDataGenerator, array_to_im
 import cv2
 import statistics
 import gt_construction
+import shutil
 
 USE_GPU = True
 IMG_MODEL_SIZE = 128
@@ -207,28 +208,30 @@ class myUnet(Callback):
         return model
 
 
-    def train(self, data_path, checkpoint_file, models_path, epochs=50, no_stacks=1):
+    def train(self, data_path, checkpoint_file, models_path, epochs=50, factor=0.1, patience=5, 
+                min_lr=0.00001, steps_per_epoch=232, batch_size=1, no_stacks=1):
         model = self.get_unet()
         print("got unet")
 
         model_checkpoint = ModelCheckpoint(checkpoint_file, monitor='loss', verbose=1, save_best_only=True)
-        early_stopping = EarlyStopping(patience=20, verbose=1, monitor='loss')
-        reduce_lr = ReduceLROnPlateau(factor=0.1, patience=5, min_lr=0.00001, verbose=1, monitor='loss')
+        early_stopping = EarlyStopping(patience=patience, verbose=1, monitor='loss')
+        reduce_lr = ReduceLROnPlateau(factor=factor, patience=patience, min_lr=min_lr, verbose=1, monitor='loss')
 
         print('Fitting model...')
         if no_stacks == 1:
-            ld = loader(1, data_path, 'Originals', 'GT', 'Originals')
-            model.fit_generator(ld, epochs=epochs, verbose=1, shuffle=True, steps_per_epoch=218, callbacks=[reduce_lr, early_stopping, model_checkpoint, self])
+            ld = loader(batch_size, data_path, 'Originals', 'GT', 'Originals')
+            model.fit_generator(ld, epochs=epochs, verbose=1, shuffle=True, steps_per_epoch=steps_per_epoch, 
+                                callbacks=[reduce_lr, early_stopping, model_checkpoint, self])
         else:
-            self.stacked_refinement(model, data_path, epochs, no_stacks, reduce_lr, early_stopping, model_checkpoint, models_path)
+            self.stacked_refinement(model, data_path, epochs, no_stacks, reduce_lr, early_stopping, model_checkpoint, models_path, steps_per_epoch, batch_size)
             #self.recursive_refinement(model, data_path, epochs, no_stacks, reduce_lr, early_stopping, model_checkpoint)
 
-    def recursive_refinement(self, model, data_path, epochs, no_recursions, reduce_lr, early_stopping, model_checkpoint):
+    def recursive_refinement(self, model, data_path, epochs, no_recursions, reduce_lr, early_stopping, model_checkpoint, steps_per_epoch, batch_size):
         pred_originals = 'Originals'
 
         for recursion in range(no_recursions):
-            ld = loader(1, data_path, pred_originals, 'GT', 'Originals')
-            model.fit_generator(ld, epochs=epochs, verbose=1, shuffle=True, steps_per_epoch=218, callbacks=[reduce_lr, early_stopping, model_checkpoint, self])
+            ld = loader(batch_size, data_path, pred_originals, 'GT', 'Originals')
+            model.fit_generator(ld, epochs=epochs, verbose=1, shuffle=True, steps_per_epoch=steps_per_epoch, callbacks=[reduce_lr, early_stopping, model_checkpoint, self])
 
             new_originals_folder = os.path.join(data_path, f'Originals_{recursion}')
 
@@ -252,33 +255,57 @@ class myUnet(Callback):
             reduce_lr = ReduceLROnPlateau(factor=0.1, patience=5, min_lr=0.00001, verbose=1, monitor='loss')
             pred_originals = f'Originals_{recursion}'
 
-    def stacked_refinement(self, model, data_path, epochs, no_stacks, reduce_lr, early_stopping, model_checkpoint, models_path):
+    def stacked_refinement(self, model, data_paths, epochs, no_stacks, reduce_lr, early_stopping, model_checkpoint, models_path, steps_per_epoch, batch_size):
         pred_originals = 'Originals'
 
         for stack in range(no_stacks):
-            ld = loader(1, data_path, pred_originals, 'GT', 'Originals')
-            model.fit_generator(ld, epochs=epochs, verbose=1, shuffle=True, steps_per_epoch=10000, callbacks=[reduce_lr, early_stopping, model_checkpoint, self])
+            for data_path in data_paths:
+                shutil.unpack_archive(data_path + '.zip', data_path)
+                ld = loader(batch_size, data_path, pred_originals, 'GT', 'Originals')
+                model.fit_generator(ld, epochs=epochs, verbose=1, shuffle=True, steps_per_epoch=steps_per_epoch, callbacks=[reduce_lr, early_stopping, model_checkpoint, self])
+                # remove unzipped to save storage
+                try:
+                    shutil.rmtree(data_path)
+                except OSError as e:
+                    print("(0) Error: %s - %s." % (e.filename, e.strerror))
 
-            new_originals_folder = os.path.join(data_path, f'Originals_{stack}')
+            for data_path in data_paths:
+                shutil.unpack_archive(data_path + '.zip', data_path)
+                new_originals_folder = os.path.join(data_path, f'Originals_{stack}')
+                images_path = os.path.join(data_path, pred_originals)
+                if stack != no_stacks-1:
+                    try:
+                        os.mkdir(new_originals_folder)
+                    except Exception as e:
+                        print(f"Folder '{new_originals_folder}' already exists!")
 
-            try:
-                os.mkdir(new_originals_folder)
-            except Exception as e:
-                print(f"Folder '{new_originals_folder}' already exists!")
+                        for file in os.listdir(new_originals_folder):
+                            os.remove(os.path.join(new_originals_folder, file))
+    
+                    print(f"IN DATA PATH {data_path}, IMAGES PATH {images_path}")
+                    for image in os.listdir(images_path):
+                        image_path = os.path.join(images_path, image)
+                        xu = self.binarise_image(input_image=image_path, name=image[:-4], model=model)
 
-                for file in os.listdir(new_originals_folder):
-                    os.remove(os.path.join(new_originals_folder, file))
+                        new_image_path = os.path.join(new_originals_folder, image)
+                        cv2.imwrite(new_image_path, xu)
+                
+                if stack > 0:
+                    try:
+                        shutil.rmtree(images_path)
+                    except OSError as e:
+                        print("(2) Error: %s - %s." % (e.filename, e.strerror))
 
-            images_path = os.path.join(data_path, pred_originals)
-            for image in os.listdir(images_path):
-                image_path = os.path.join(images_path, image)
-                xu = self.binarise_image(input_image=image_path, name=image[:-4], model=model)
+                shutil.make_archive(data_path, 'zip', data_path)
 
-                new_image_path = os.path.join(new_originals_folder, image)
-                cv2.imwrite(new_image_path, xu)
+                try:
+                    shutil.rmtree(data_path)
+                except OSError as e:
+                    print("(1) Error: %s - %s." % (e.filename, e.strerror))
 
             model = self.get_unet()
-            checkpoint_file = os.path.join(models_path, f'stacked_refinement_iteration_{stack+1}.hdf5')
+            checkpoint_file = os.path.join(models_path, f'stacked_refinement_iteration_{stack}.hdf5')
+            # TODO add patience variables etc.
             model_checkpoint = ModelCheckpoint(checkpoint_file, monitor='loss', verbose=1, save_best_only=True)
             early_stopping = EarlyStopping(patience=20, verbose=1, monitor='loss')
             reduce_lr = ReduceLROnPlateau(factor=0.1, patience=5, min_lr=0.00001, verbose=1, monitor='loss')
@@ -455,10 +482,6 @@ class myUnet(Callback):
 
         print('predicting test data')
         imgs_mask_test = model.predict(parts, batch_size=1, verbose=1)
-
-        # for i, predicted_part in enumerate(imgs_mask_test[:,:,:,0]):
-        #     cv2.imwrite(os.path.join('results', 'predicted_' + str(i) + '.png'), predicted_part*255)
-        #     print("Saved predicted part ", i)
         
         # BUILD/RESTORE PREDICTED IMAGE FROM PREDICTED PARTS
         neg_e = self.restore_image(imgs_mask_test, dim)
@@ -468,24 +491,6 @@ class myUnet(Callback):
 
         neg_e = neg_e[:,:,0]
         xu = image_add(neg_e, x)
-
-        #print(neg_e)
-        #print(xu)
-
-        # #awawdawd
-        # mask = cv2.imread(os.path.join('images', 'GT', name+'.png'), cv2.IMREAD_GRAYSCALE)
-
-        # mask = ((mask/255 > 0.5)).astype(np.uint8)
-        # x = x/255
-        # x = np.expand_dims(x, axis=2)
-        # grayscale_gt = gt_construction.generate_grayscale_gt(x, np.expand_dims(mask, axis=2))
-
-        # neg_e_real = grayscale_gt-x # grayscale_gt-img
-        # neg_e_real = remove_negative_pixels(neg_e_real)
-        # neg_e_real = (neg_e_real * 255).astype(np.uint8)
-
-        # cv2.imwrite(os.path.join('results', name + '_XU_REAL.png'), image_add(neg_e_real, x*255))
-        #cv2.imwrite(os.path.join('results', name + '_NEG_E_PREDICTED.png'), neg_e)
 
         return xu
 
