@@ -195,7 +195,7 @@ class myUnet(Callback):
         print("got unet")
 
         model_checkpoint = ModelCheckpoint(checkpoint_file, monitor='loss', verbose=1, save_best_only=True)
-        early_stopping = EarlyStopping(patience=patience, verbose=1)
+        early_stopping = EarlyStopping(patience=20, verbose=1)
         reduce_lr = ReduceLROnPlateau(factor=factor, patience=patience, min_lr=min_lr, verbose=1)
         print('Fitting model...')
 
