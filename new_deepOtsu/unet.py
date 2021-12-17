@@ -16,7 +16,7 @@ import cv2
 import statistics
 import gt_construction
 import shutil
-
+from metrics import metrics
 USE_GPU = True
 IMG_MODEL_SIZE = 128
 
@@ -72,12 +72,6 @@ def loader(batch_size, train_path, image_folder, mask_folder, original_image_fol
         grayscale_gt = gt_construction.generate_grayscale_gt(og, mask)
 
         neg_e = grayscale_gt-img
-        #neg_e = remove_negative_pixels(neg_e)
-
-        # cv2.imwrite(os.path.join('results', str(counter) + 'img.png'), 255*img)
-        # cv2.imwrite(os.path.join('results', str(counter) + 'og.png'), 255*og)
-        # cv2.imwrite(os.path.join('results', str(counter) + 'grayscale_gt.png'), 255*grayscale_gt)
-        # cv2.imwrite(os.path.join('results', str(counter) + 'neg_e.png'), 255*neg_e)
         
         neg_e = np.expand_dims(neg_e, axis=0)
         img = np.expand_dims(img, axis=0)
@@ -117,30 +111,30 @@ class myUnet(Callback):
 
         conv1 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='glorot_uniform')(inputs)
         conv1 = BatchNormalization()(conv1)
-        print("conv1 shape:", conv1.shape)
+       # print("conv1 shape:", conv1.shape)
         conv1 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='glorot_uniform')(conv1)
         conv1 = BatchNormalization()(conv1)
-        print("conv1 shape:", conv1.shape)
+       # print("conv1 shape:", conv1.shape)
         pool1 = MaxPooling2D(pool_size=(2, 2))(conv1)
-        print("pool1 shape:", pool1.shape)
+       # print("pool1 shape:", pool1.shape)
 
         conv2 = Conv2D(128, 3, activation='relu', padding='same', kernel_initializer='glorot_uniform')(pool1)
         conv2 = BatchNormalization()(conv2)
-        print("conv2 shape:", conv2.shape)
+       # print("conv2 shape:", conv2.shape)
         conv2 = Conv2D(128, 3, activation='relu', padding='same', kernel_initializer='glorot_uniform')(conv2)
         conv2 = BatchNormalization()(conv2)
-        print("conv2 shape:", conv2.shape)
+        #print("conv2 shape:", conv2.shape)
         pool2 = MaxPooling2D(pool_size=(2, 2))(conv2)
-        print("pool2 shape:", pool2.shape)
+        #print("pool2 shape:", pool2.shape)
 
         conv3 = Conv2D(IMG_MODEL_SIZE, 3, activation='relu', padding='same', kernel_initializer='glorot_uniform')(pool2)
         conv3 = BatchNormalization()(conv3)
-        print("conv3 shape:", conv3.shape)
+       # print("conv3 shape:", conv3.shape)
         conv3 = Conv2D(IMG_MODEL_SIZE, 3, activation='relu', padding='same', kernel_initializer='glorot_uniform')(conv3)
         conv3 = BatchNormalization()(conv3)
-        print("conv3 shape:", conv3.shape)
+       # print("conv3 shape:", conv3.shape)
         pool3 = MaxPooling2D(pool_size=(2, 2))(conv3)
-        print("pool3 shape:", pool3.shape)
+       # print("pool3 shape:", pool3.shape)
 
         conv4 = Conv2D(512, 3, activation='relu', padding='same', kernel_initializer='glorot_uniform')(pool3)
         conv4 = BatchNormalization()(conv4)
@@ -157,8 +151,8 @@ class myUnet(Callback):
 
         up6 = Conv2D(512, 2, activation='relu', padding='same', kernel_initializer='glorot_uniform')(
             UpSampling2D(size=(2, 2))(drop5))
-        print('up6 ' + str(up6))
-        print('drop4 ' + str(drop4))
+        #print('up6 ' + str(up6))
+        #print('drop4 ' + str(drop4))
         # merge6 = merge([drop4, up6], mode = 'concat', concat_axis = 3)
         merge6 = concatenate([drop4, up6], axis=3)
 
@@ -371,9 +365,6 @@ class myUnet(Callback):
         remx = width % patch_size
         remy = height % patch_size
 
-        #print(width, patch_size, delta_x, remx)
-        #print(height, patch_size, delta_y, remy)
-
         border_width = border_size + width + patch_size - remx + border_size
         border_height = border_size + height  + patch_size - remy + border_size
 
@@ -382,8 +373,6 @@ class myUnet(Callback):
         border.fill(255)  # or img[:] = 255
 
         border[border_size:height+border_size, border_size:width+border_size] = img
-        #cv2.imwrite(os.path.join('results', 'img.png'), img)
-        #cv2.imwrite(os.path.join('results', 'border.png'), border)
 
         if remx > 0:
             delta_x += 1
@@ -394,7 +383,6 @@ class myUnet(Callback):
             xinit = x * patch_size
             for y in range(delta_y):
                 yinit = y * patch_size
-                #print("ystart: " + str(yinit) + ", yend: " + str(yinit+original_model_size) + ", imgstart: " + str(yinit+border_size) + ", imgend: " + str(yinit+original_model_size-border_size))
                 part = border[yinit:yinit + original_model_size, xinit:xinit+original_model_size]
                 parts.append(part.astype('float32') / 255)
 
@@ -447,8 +435,6 @@ class myUnet(Callback):
         remy = height % patch_size
         index = 0
 
-        #print(width, delta_x, remx)
-        #print(height, delta_y, remy)
         if remx > 0:
             delta_x += 1
 
@@ -459,21 +445,17 @@ class myUnet(Callback):
                 part = parts[index]
                 if x == delta_x-1 and remx > 0: # right of picture (remx)
                     result[yinit:yinit+patch_size, xinit:xinit+remx] = 255 * part[border_size:border_size+patch_size, border_size:border_size+remx]
-                    #print(255 * part[border_size:border_size+patch_size, border_size:border_size+remx])
                 else: # Standard case, no remx or remy problems
                     result[yinit:yinit+patch_size, xinit:xinit+patch_size] = 255 * part[border_size:border_size+patch_size, border_size:border_size+patch_size]
-                    #print(255 * part[border_size:border_size+patch_size, border_size:border_size+patch_size])
                 index += 1
 
             if remy > 0 and x == delta_x-1 and remx > 0: # bottom-right of picture (remy + remx)
                 part = part = parts[index]
                 result[height-remy:height, width-remx:width] = 255 * part[border_size:border_size+remy, border_size:border_size+remx]
-                #print(255 * part[border_size:border_size+remy, border_size:border_size+remx])
                 index += 1
             elif remy > 0: # bottom of picture (remy)
                 part = part = parts[index]
                 result[height-remy:height, xinit:xinit+patch_size] = 255 * part[border_size:border_size+remy, border_size:border_size+patch_size]
-                #print(255 * part[border_size:border_size+remy, border_size:border_size+patch_size])
                 index += 1
         return result
 
@@ -491,7 +473,6 @@ class myUnet(Callback):
         
         # BUILD/RESTORE PREDICTED IMAGE FROM PREDICTED PARTS
         neg_e = self.restore_image(imgs_mask_test, dim)
-        cv2.imwrite(os.path.join('results', f'neg_e_predicted_{name}.png'), neg_e)
 
         x = cv2.imread(input_image, cv2.IMREAD_GRAYSCALE)
 
@@ -521,7 +502,6 @@ class myUnet(Callback):
 
         for i in range(imgs.shape[0]):
             img = imgs[i]
-            # self.show_image(img)
             img = array_to_img(img)
             img.save(path + "%d.jpg" % (i))
 
@@ -543,10 +523,12 @@ def test_predict(u_net, models):
     print(images_path)
     images = os.listdir(images_path)
     print(images)
-    results = []
+    results_unet = []
+    results_otsu = []
+    results_sauvola = []
+    results_niblack = []
     for image in images:
         gt_path = os.path.join('images', 'GT', image[:-4] + '.png')
-        # print(gt_path)
         ground_truth = cv2.imread(gt_path, cv2.IMREAD_GRAYSCALE)
         current_image = os.path.join('images', 'Originals', image)
         image_read = cv2.imread(current_image, cv2.IMREAD_GRAYSCALE)
@@ -556,59 +538,74 @@ def test_predict(u_net, models):
             cv2.imwrite(current_image,unet_image)
             
         result_unet = unet_image
-        ressult_otsu = threshold_otsu(result_unet)
-        cv2.imwrite(os.path.join('results', image[:-4] + '_' + '_unet_.png'), result_unet)
+        threshold_unet = threshold_otsu(result_unet)
         # Binarise image with Otsu
-        result_unet = ((result_unet > ressult_otsu) * 255).astype(np.uint8)
-        ressult_otsu = threshold_otsu(image_read)
-        result_otsu = ((image_read > ressult_otsu) * 255).astype(np.uint8)
-        result_sauvola = threshold_sauvola(image_read)
-        result_sauvola = ((image_read > result_sauvola) * 255).astype(np.uint8)
+        result_unet = ((result_unet > threshold_unet) * 255).astype(np.uint8)
+        
+        otsu = threshold_otsu(image_read)
+        result_otsu = ((image_read > otsu) * 255).astype(np.uint8)
+        
+        sauvola = threshold_sauvola(image_read)
+        result_sauvola = ((image_read > sauvola) * 255).astype(np.uint8)
+        
         window_size = 25
-        result_niblack = threshold_niblack(image_read, window_size=window_size, k=0.8)
-        result_niblack = ((image_read > result_niblack) * 255).astype(np.uint8)
-
-        #print(result_unet.shape)
-        #print("------")
-        #print(result_niblack.shape)
-        #exit()
+        niblack = threshold_niblack(image_read, window_size=window_size, k=0.8)
+        result_niblack = ((image_read > niblack) * 255).astype(np.uint8)
 
 
         # FIX ground_truth and output from unet to be binarized (0 or 255)
         ground_truth = ((ground_truth > 128) * 255).astype(np.uint8)
-        #result_unet = result_unet[:,:,0]
-        #result_unet = ((result_unet > 128) * 255).astype(np.uint8)
-        #for pixel in result_unet:
-        #    print(pixel)
 
-        img_true = np.array(ground_truth).ravel()
-        img_pred = np.array(result_niblack).ravel()
-        iou_niblack = statistics.mean(jaccard_score(img_true, img_pred, average=None))
-        cv2.imwrite(os.path.join('results', image[:-4] + '_' + str(iou_niblack)[:5] + '_niblack_.png'),
-                    result_niblack)
+        cv2.imwrite(os.path.join('results', image[:-4] + '_unet_binarize.png'), result_unet)
 
-        img_pred = np.array(result_otsu).ravel()
-        iou_otsu = statistics.mean(jaccard_score(img_true, img_pred, average=None))
-        cv2.imwrite(os.path.join('results', image[:-4] + '_' + str(iou_otsu)[:5] + '_otsu_.png'), result_otsu)
+        fmeasure, pfmeasure, psnr, nrm, mpm, drd = metrics(result_unet, ground_truth)
+        results_unet.append([['F-Measure', fmeasure], ['pf-Measure', pfmeasure], 
+        ['PSNR', psnr], ['NRM', nrm], ['MPM', mpm], ['DRD', drd]])
+        
+        fmeasure, pfmeasure, psnr, nrm, mpm, drd = metrics(result_otsu, ground_truth)
+        results_otsu.append([['F-Measure', fmeasure], ['pf-Measure', pfmeasure], 
+        ['PSNR', psnr], ['NRM', nrm], ['MPM', mpm], ['DRD', drd]])
+        
+        fmeasure, pfmeasure, psnr, nrm, mpm, drd = metrics(result_sauvola, ground_truth)
+        results_sauvola.append([['F-Measure', fmeasure], ['pf-Measure', pfmeasure], 
+        ['PSNR', psnr], ['NRM', nrm], ['MPM', mpm], ['DRD', drd]])
+        
+        fmeasure, pfmeasure, psnr, nrm, mpm, drd = metrics(result_niblack, ground_truth)
+        results_niblack.append([['F-Measure', fmeasure], ['pf-Measure', pfmeasure], 
+        ['PSNR', psnr], ['NRM', nrm], ['MPM', mpm], ['DRD', drd]])
 
-        img_pred = np.array(result_sauvola).ravel()
-        iou_sauvola = statistics.mean(jaccard_score(img_true, img_pred, average=None))
-        cv2.imwrite(os.path.join('results', image[:-4] + '_' + str(iou_sauvola)[:5] + '_sauvola_.png'),
-                    result_sauvola)
+    print('---SLEEPOTSU---')
+    measures = []
+    for i in range(len(results_unet[0])):
+        meas_mean = statistics.mean([row[i][1] for row in results_unet])
+        measures.append([results_unet[0][i][0], meas_mean])
+    headers = ['Measure', 'Score']
+    print(pd.DataFrame(measures, None, headers))
+    
+    print('---OTSU---')
+    measures = []
+    for i in range(len(results_otsu[0])):
+        meas_mean = statistics.mean([row[i][1] for row in results_otsu])
+        measures.append([results_otsu[0][i][0], meas_mean])
+    headers = ['Measure', 'Score']
+    print(pd.DataFrame(measures, None, headers))
+    
+    print('---SAUVOLA---')
+    measures = []
+    for i in range(len(results_sauvola[0])):
+        meas_mean = statistics.mean([row[i][1] for row in results_sauvola])
+        measures.append([results_sauvola[0][i][0], meas_mean])
+    headers = ['Measure', 'Score']
+    print(pd.DataFrame(measures, None, headers))
+    
+    print('---NIBLACK---')
+    measures = []
+    for i in range(len(results_niblack[0])):
+        meas_mean = statistics.mean([row[i][1] for row in results_niblack])
+        measures.append([results_niblack[0][i][0], meas_mean])
+    headers = ['Measure', 'Score']
+    print(pd.DataFrame(measures, None, headers))
 
-        img_pred = np.array(result_unet).ravel()
-        print("img_true")
-        print(img_true)
-        print("img_pred")
-        print(img_pred)
-        iou_unet = statistics.mean(jaccard_score(img_true, img_pred, average=None))
-        cv2.imwrite(os.path.join('results', image[:-4] + '_' + str(iou_unet)[:5] + '_unet_binarize.png'), result_unet)
-
-        results.append([iou_unet, iou_otsu, iou_sauvola, iou_niblack])
-
-    for index, image in enumerate(images):
-        print('Image', image, '- U-Net IoU:', results[index][0], 'Otsu IoU:', results[index][1], 'Sauvola IoU:',
-              results[index][2], 'Niblack IoU:', results[index][3])
 
 
 if __name__ == '__main__':

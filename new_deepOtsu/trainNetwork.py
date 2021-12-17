@@ -127,7 +127,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     if args.pred:
         if args.name is not None:
-            predict_net(args.name)
+            predict_net(unet.myUnet())
         else:
             print("Give model name please.")
     else:
