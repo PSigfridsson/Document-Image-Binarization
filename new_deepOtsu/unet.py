@@ -253,6 +253,10 @@ class myUnet(Callback):
         pred_originals = 'Originals'
 
         for stack in range(no_stacks):
+            model_path = os.path.join("stacked_refinement_models", f'stacked_refinement_iteration_{stack}.hdf5')
+            if os.path.exists(model_path):
+                model.load_weights(model_path)
+                print("Loading model: " + model_path)
             for data_path in data_paths:
                 shutil.unpack_archive(data_path + '.zip', data_path)
                 name = os.path.split(data_path)[1]
