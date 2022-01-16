@@ -1,6 +1,0 @@
-model_checkpoint_path: "model.ckpt"
-all_model_checkpoint_paths: "../tempure-fusion_unet-iter-70000-log/model.ckpt"
-all_model_checkpoint_paths: "../tempure-fusion_unet-iter-80000-log/model.ckpt"
-all_model_checkpoint_paths: "../tempure-fusion_unet-iter-90000-log/model.ckpt"
-all_model_checkpoint_paths: "../tempure-fusion_unet-iter-100000-log/model.ckpt"
-all_model_checkpoint_paths: "model.ckpt"
